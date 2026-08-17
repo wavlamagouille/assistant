@@ -1774,7 +1774,13 @@
   });
 
   const masteringBtn = document.querySelector('button[data-module="mastering"]');
-  if(masteringBtn) masteringBtn.remove();
+  if(masteringBtn){
+    masteringBtn.textContent = 'Refresh';
+    masteringBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      loadMastering();
+    });
+  }
   loadMastering();
 
   document.querySelector('[data-module="mastering"]').addEventListener('click', (e) => {
