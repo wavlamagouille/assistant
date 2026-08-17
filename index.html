@@ -1795,22 +1795,21 @@
       if(!masteringItems.length){
         bodyEl.innerHTML = '<div class="tile-hint">No pending jobs or quote requests.</div>';
       } else {
-        function statusColor(status){
-          const s = (status || '').toLowerCase();
-          if(/new|pending|received/.test(s)) return '#60a5fa';
-          if(/progress|working|master/.test(s)) return '#fbbf24';
-          if(/review|revision/.test(s)) return '#a78bfa';
-          if(/done|complete|delivered|finish/.test(s)) return '#4ade80';
-          if(/cancel|reject|declin/.test(s)) return '#e11d48';
-          return '#71717a';
-        }
+        // Same labels/colors as the intake app's own STATUS map, for consistency.
+        const STATUS_INFO = {
+          new:       { label:'New',                 color:'#60a5fa' },
+          mix_fixes: { label:'Mix fixes needed',     color:'#fbbf24' },
+          ready:     { label:'Ready to master',      color:'#60a5fa' },
+          delivered: { label:'Ready for review',     color:'#e11d48' },
+          revisions: { label:'Revisions requested',  color:'#fbbf24' },
+          approved:  { label:'Approved',             color:'#4ade80' },
+          paid:      { label:'Paid',                 color:'#4ade80' }
+        };
         const renderRow = (p, idx) => {
           const date = p.createdAt ? new Date(p.createdAt).toLocaleDateString([], { month:'short', day:'numeric' }) : '';
           const extra = p.type === 'job' ? (p.trackCount === 1 ? '1 track' : p.trackCount + ' tracks') : '';
-          const status = p.status || (p.type === 'job' ? null : 'new');
-          const badge = status
-            ? `<span style="font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:${statusColor(status)}; border:1px solid ${statusColor(status)}; border-radius:2px; padding:2px 6px; flex-shrink:0;">${status}</span>`
-            : '';
+          const info = STATUS_INFO[p.status] || STATUS_INFO.new;
+          const badge = `<span style="font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:${info.color}; border:1px solid ${info.color}; border-radius:2px; padding:2px 6px; flex-shrink:0; white-space:nowrap;">${info.label}</span>`;
           return `<div class="coin-row" data-item-idx="${idx}" style="width:100%; padding:6px 0; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <div style="min-width:0;">
               <div style="font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.clientName}</div>
