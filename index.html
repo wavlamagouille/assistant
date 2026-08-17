@@ -348,15 +348,36 @@
   }
   .tile-cta:hover{ background:var(--rose-bright); color:#18181b; border-color:var(--rose-bright); }
 
-  .chat-tile{
-    display:flex; flex-direction:row; align-items:flex-start; justify-content:space-between;
-    min-height:auto;
-    padding:16px 22px;
+  .chat-toggle-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:26px; height:26px; flex-shrink:0;
+    background:none; border:1px solid var(--line);
+    color:var(--text-mid);
+    cursor:pointer;
+    border-radius:3px;
+    transition:color .15s ease, border-color .15s ease, background .15s ease;
   }
-  .chat-tile.active{ flex-direction:column; align-items:stretch; gap:10px; }
-  .chat-tile .tile-name{ font-size:19px; }
-  .chat-left{ display:flex; align-items:center; gap:16px; }
-  .chat-tile .tile-hint{ font-size:12px; }
+  .chat-toggle-btn:hover, .chat-toggle-btn.active{
+    color:var(--rose-bright); border-color:var(--rose-bright); background:rgba(225,29,72,.1);
+  }
+
+  .chat-panel{
+    position:fixed; top:0; right:0; height:100%; width:400px; max-width:92vw;
+    background:var(--bg-raised); border-left:1px solid var(--line);
+    box-shadow:-12px 0 40px rgba(0,0,0,.5);
+    display:flex; flex-direction:column;
+    padding:20px;
+    gap:14px;
+    transform:translateX(100%);
+    transition:transform .25s ease;
+    z-index:200;
+  }
+  .chat-panel.open{ transform:translateX(0); }
+  .chat-panel-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding-bottom:14px; border-bottom:1px solid var(--line); flex-shrink:0;
+  }
+  .chat-panel-head .tile-name{ font-size:19px; }
 
   .chat-messages{
     display:flex; flex-direction:column; gap:10px;
@@ -464,8 +485,26 @@
           <div class="time" id="time">--:--:--</div>
           <div class="date" id="date">-- --- ----</div>
         </div>
+        <button class="chat-toggle-btn" id="chatToggleBtn" title="AI Chat" aria-label="Toggle AI Chat">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </button>
       </div>
     </header>
+
+    <div class="chat-panel" id="chatPanel">
+      <div class="chat-panel-head">
+        <div style="display:flex; align-items:baseline; gap:10px;">
+          <div class="tile-name">AI CHAT</div>
+          <span class="tile-idx" id="chatPanelModel"></span>
+        </div>
+        <button class="modal-close" id="chatPanelClose">✕</button>
+      </div>
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input-row">
+        <input id="chatInput" type="text" placeholder="Ask about your day…">
+        <button class="tile-cta" id="chatSendBtn" style="margin-top:0;">Send</button>
+      </div>
+    </div>
 
     <main id="grid" class="grid-stack">
       <!-- tiles injected by JS -->
@@ -593,8 +632,7 @@
     markets: { w:4,  h:5 },
     news:    { w:4,  h:5 },
     mastering:{ w:4, h:5 },
-    notes:   { w:4,  h:5 },
-    chat:    { w:12, h:6 }
+    notes:   { w:4,  h:5 }
   };
 
   function wrapAsGridItem(id, tileEl){
@@ -630,18 +668,6 @@
     `;
     grid.appendChild(wrapAsGridItem(m.id, tile));
   });
-
-  const chat = document.createElement('div');
-  chat.className = 'tile chat-tile';
-  chat.dataset.module = 'chat';
-  chat.innerHTML = `
-    <div class="chat-left">
-      <div class="tile-name">AI CHAT</div>
-      <div class="tile-hint" id="chatHint">Ask about your day — powered by Gemini.</div>
-    </div>
-    <button class="tile-cta" id="chatActivateBtn" data-module="chat">Activate</button>
-  `;
-  grid.appendChild(wrapAsGridItem('chat', chat));
 
   const notes = document.createElement('div');
   notes.className = 'tile';
@@ -1616,47 +1642,32 @@
   }
 
   function activateChat(){
-    const tile = document.getElementById('chatActivateBtn').closest('.tile');
     if(!GROQ_API_KEY && !GEMINI_API_KEY){
-      let noteEl = tile.querySelector('.tile-need');
-      if(!noteEl){
-        noteEl = document.createElement('div');
-        noteEl.className = 'tile-hint tile-need';
-        noteEl.style.color = 'var(--text-dim)';
-        tile.querySelector('.chat-left').appendChild(noteEl);
-      }
-      noteEl.textContent = 'Add a free key — Groq (console.groq.com/keys) is recommended for reliability, set GROQ_API_KEY near the bottom of the code.';
+      addChatMessage('system', 'Add a free key — Groq (console.groq.com/keys) is recommended for reliability, set GROQ_API_KEY near the bottom of the code.');
       return;
     }
     if(chatActive) return;
     chatActive = true;
-    withScrollLock(() => {
-      tile.classList.add('active');
-      tile.innerHTML = `
-        <div class="chat-top">
-          <div class="tile-name">AI CHAT</div>
-          <span class="tile-idx">${ACTIVE_MODEL_LABEL}</span>
-        </div>
-        <div class="chat-messages" id="chatMessages"></div>
-        <div class="chat-input-row">
-          <input id="chatInput" type="text" placeholder="Ask about your day…">
-          <button class="tile-cta" id="chatSendBtn" style="margin-top:0;">Send</button>
-        </div>
-      `;
-      // (no "Connected to X" message — redundant, model is already shown in the tile header)
-      document.getElementById('chatSendBtn').addEventListener('click', (e) => { e.stopPropagation(); sendChatMessage(); });
-      document.getElementById('chatInput').addEventListener('keydown', (e) => { if(e.key === 'Enter') sendChatMessage(); });
-      // no auto-focus — same reasoning as above
-    });
+    document.getElementById('chatPanelModel').textContent = ACTIVE_MODEL_LABEL;
+    document.getElementById('chatSendBtn').addEventListener('click', (e) => { e.stopPropagation(); sendChatMessage(); });
+    document.getElementById('chatInput').addEventListener('keydown', (e) => { if(e.key === 'Enter') sendChatMessage(); });
+    // no auto-focus — focusing an input can trigger the browser's own
+    // scroll-into-view behavior, which is what was moving the page earlier
   }
 
-  document.getElementById('chatActivateBtn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    activateChat();
+  function toggleChatPanel(){
+    const panel = document.getElementById('chatPanel');
+    const btn = document.getElementById('chatToggleBtn');
+    const opening = !panel.classList.contains('open');
+    panel.classList.toggle('open');
+    btn.classList.toggle('active', opening);
+    if(opening) activateChat();
+  }
+  document.getElementById('chatToggleBtn').addEventListener('click', toggleChatPanel);
+  document.getElementById('chatPanelClose').addEventListener('click', toggleChatPanel);
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'Escape' && document.getElementById('chatPanel').classList.contains('open')) toggleChatPanel();
   });
-
-  // Auto-activate on load, same as weather/markets/news/mail/agenda
-  activateChat();
 
   // ---- Gmail + Calendar (no OAuth, no Google Cloud Console) ----
   // Calendar: private ICS feed URL. Email: IMAP + App Password.
