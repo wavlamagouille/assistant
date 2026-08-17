@@ -314,7 +314,7 @@
   .tile-cta:hover{ background:var(--rose-bright); color:#18181b; border-color:var(--rose-bright); }
 
   .chat-tile{
-    display:flex; flex-direction:row; align-items:center; justify-content:space-between;
+    display:flex; flex-direction:row; align-items:flex-start; justify-content:space-between;
     min-height:auto;
     padding:16px 22px;
   }
@@ -1543,6 +1543,9 @@
     e.stopPropagation();
     activateChat();
   });
+
+  // Auto-activate on load, same as weather/markets/news/mail/agenda
+  activateChat();
 
   // ---- Gmail + Calendar (no OAuth, no Google Cloud Console) ----
   // Calendar: private ICS feed URL. Email: IMAP + App Password.
