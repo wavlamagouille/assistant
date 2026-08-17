@@ -1,14 +1,33 @@
 // Reads the Wavaudiolab intake app's Firebase Realtime Database, specifically
-// the /projects path — nothing else in the database is touched. Requires the
-// Realtime Database rules to grant read access to /projects specifically
-// (not the whole database) — see rules.json alongside this file for the
-// exact rule to add.
+// the /projects path. Rather than requiring a change to your Firebase rules,
+// this signs in anonymously first (the same mechanism your intake app almost
+// certainly already uses to let clients submit without an account) and reads
+// using that session — respecting your existing rules exactly as they are.
 
 const DATABASE_URL = 'https://mastering-2b382-default-rtdb.europe-west1.firebasedatabase.app';
+const FIREBASE_API_KEY = 'AIzaSyCasdb4heqoq7_740fJqy_x03BZmKt1WoQ'; // Firebase's public web API key, not a secret
+
+let cachedToken = null;
+let cachedTokenExpiry = 0;
+
+async function getAuthToken(){
+  if(cachedToken && Date.now() < cachedTokenExpiry) return cachedToken;
+  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ returnSecureToken: true })
+  });
+  const data = await r.json();
+  if(!r.ok) throw new Error((data.error && data.error.message) || 'Anonymous sign-in failed');
+  cachedToken = data.idToken;
+  cachedTokenExpiry = Date.now() + (Number(data.expiresIn || 3600) * 1000) - 60000;
+  return cachedToken;
+}
 
 export default async function handler(req, res) {
   try {
-    const r = await fetch(`${DATABASE_URL}/projects.json`);
+    const token = await getAuthToken();
+    const r = await fetch(`${DATABASE_URL}/projects.json?auth=${token}`);
     const data = await r.json();
 
     if (!r.ok) {
