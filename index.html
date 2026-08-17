@@ -1473,101 +1473,63 @@
     activateChat();
   });
 
-  // ---- Google login (Gmail + Calendar, read-only, PKCE — no client secret needed) ----
-  // Client ID is safe to keep in frontend code for this flow. Uses the
-  // exact current URL as the redirect target, so it works wherever this
-  // file happens to be hosted, as long as that exact URL is registered
-  // in Google Cloud Console → Credentials → this OAuth client's
-  // Authorized redirect URIs.
-  const GOOGLE_CLIENT_ID = '82698009173-k1umel8li3rd6ghb6e9vgodi0i8vo3n6.apps.googleusercontent.com';
-  // The client secret is NOT here — it lives server-side in /api/google-token.js
-  // as a Vercel environment variable, and never touches the browser or the repo.
-  const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly';
-  const GOOGLE_REDIRECT_URI = window.location.origin + window.location.pathname;
+  // ---- Gmail + Calendar (no OAuth, no Google Cloud Console) ----
+  // Calendar: private ICS feed URL. Email: IMAP + App Password.
+  // Both credentials live server-side in Vercel env vars, fetched through
+  // /api/calendar and /api/gmail — never touch the browser or the repo.
 
-  function b64url(bytes){
-    return btoa(String.fromCharCode(...new Uint8Array(bytes)))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
-
-  async function sha256(str){
-    return await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  }
-
-  function randomVerifier(){
-    const arr = new Uint8Array(32);
-    crypto.getRandomValues(arr);
-    return b64url(arr.buffer);
-  }
-
-  async function connectGoogle(){
-    const verifier = randomVerifier();
-    const challenge = b64url(await sha256(verifier));
-    localStorage.setItem('google_pkce_verifier', verifier);
-    const params = new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      redirect_uri: GOOGLE_REDIRECT_URI,
-      response_type: 'code',
-      scope: GOOGLE_SCOPES,
-      access_type: 'offline',
-      prompt: 'consent',
-      code_challenge: challenge,
-      code_challenge_method: 'S256'
-    });
-    window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
-  }
-
-  async function exchangeCodeForTokens(code){
-    const verifier = localStorage.getItem('google_pkce_verifier');
-    const res = await fetchWithTimeout('/api/google-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'authorization_code',
-        code: code,
-        code_verifier: verifier,
-        redirect_uri: GOOGLE_REDIRECT_URI
-      })
-    }, 15000);
-    const data = await res.json();
-    if(!res.ok) throw new Error((data && data.error_description) || (data && data.error) || 'Token exchange failed');
-    storeGoogleTokens(data);
-  }
-
-  function storeGoogleTokens(data){
-    const stored = {
-      access_token: data.access_token,
-      refresh_token: data.refresh_token || JSON.parse(localStorage.getItem('google_tokens') || '{}').refresh_token,
-      expires_at: Date.now() + (data.expires_in * 1000)
-    };
-    localStorage.setItem('google_tokens', JSON.stringify(stored));
-  }
-
-  async function refreshGoogleToken(){
-    const stored = JSON.parse(localStorage.getItem('google_tokens') || 'null');
-    if(!stored || !stored.refresh_token) return null;
-    const res = await fetchWithTimeout('/api/google-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'refresh_token',
-        refresh_token: stored.refresh_token
-      })
-    }, 15000);
-    const data = await res.json();
-    if(!res.ok){
-      localStorage.removeItem('google_tokens'); // refresh token revoked/expired — needs a fresh login
-      throw new Error((data && data.error_description) || 'Refresh failed');
+  async function loadGmail(){
+    const bodyEl = setTileLive('mail', 'Connecting…');
+    try{
+      const res = await fetchWithTimeout('/api/google-data?source=gmail');
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Gmail fetch failed');
+      setTileLive('mail', 'Live — Gmail');
+      const msgs = data.messages || [];
+      if(!msgs.length){
+        bodyEl.innerHTML = '<div class="tile-hint">Inbox is empty.</div>';
+      } else {
+        bodyEl.innerHTML = msgs.map(m => `
+          <div style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
+            <div style="font-size:13px; color:var(--text);">${m.subject}</div>
+            <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${m.from}</div>
+          </div>`).join('');
+      }
+      connected.add('mail'); refreshCount();
+    }catch(err){
+      console.error('gmail load failed', err);
+      setTileLive('mail', 'Connection error');
+      bodyEl.innerHTML = `<div class="tile-hint" style="color:var(--rose-bright);">${err.message}</div>`;
     }
-    storeGoogleTokens(data);
-    return JSON.parse(localStorage.getItem('google_tokens')).access_token;
   }
 
-  async function getValidGoogleToken(){
-    const stored = JSON.parse(localStorage.getItem('google_tokens') || 'null');
-    if(!stored) return null;
-    if(Date.now() < stored.expires_at - 60000) return stored.access_token; // still valid, 1min buffer
-    return await refreshGoogleToken();
+  async function loadCalendar(){
+    const bodyEl = setTileLive('agenda', 'Connecting…');
+    try{
+      const res = await fetchWithTimeout('/api/google-data?source=calendar');
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Calendar fetch failed');
+      setTileLive('agenda', 'Live — Google Calendar');
+      const events = data.events || [];
+      if(!events.length){
+        bodyEl.innerHTML = '<div class="tile-hint">No upcoming events.</div>';
+      } else {
+        bodyEl.innerHTML = events.map(ev => {
+          const start = ev.allDay
+            ? new Date(ev.start).toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' })
+            : new Date(ev.start).toLocaleString([], { weekday:'short', hour:'2-digit', minute:'2-digit' });
+          return `<div style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
+            <div style="font-size:13px; color:var(--text);">${ev.summary}</div>
+            <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${start}</div>
+          </div>`;
+        }).join('');
+      }
+      connected.add('agenda'); refreshCount();
+    }catch(err){
+      console.error('calendar load failed', err);
+      setTileLive('agenda', 'Connection error');
+      bodyEl.innerHTML = `<div class="tile-hint" style="color:var(--rose-bright);">${err.message}</div>`;
+    }
   }
 
   function setTileLive(mod, label){
@@ -1581,111 +1543,17 @@
     return tile.querySelector('.tile-body');
   }
 
-  async function loadGmail(){
-    const bodyEl = setTileLive('mail', 'Connecting…');
-    try{
-      const token = await getValidGoogleToken();
-      if(!token) throw new Error('Not connected');
-      const headers = { Authorization: 'Bearer ' + token };
-      const listRes = await fetchWithTimeout('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&labelIds=INBOX', { headers });
-      const listData = await listRes.json();
-      if(!listRes.ok) throw new Error((listData.error && listData.error.message) || 'Gmail list failed');
-      const ids = (listData.messages || []).map(m => m.id);
-      const details = await Promise.all(ids.map(async id => {
-        const r = await fetchWithTimeout(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`, { headers });
-        return r.json();
-      }));
-      setTileLive('mail', 'Live — Gmail');
-      if(!details.length){
-        bodyEl.innerHTML = '<div class="tile-hint">Inbox is empty.</div>';
-      } else {
-        bodyEl.innerHTML = details.map(m => {
-          const headersArr = (m.payload && m.payload.headers) || [];
-          const subject = (headersArr.find(h => h.name === 'Subject') || {}).value || '(no subject)';
-          const from = (headersArr.find(h => h.name === 'From') || {}).value || '';
-          const fromName = from.split('<')[0].trim().replace(/"/g, '');
-          return `<div style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
-            <div style="font-size:13px; color:var(--text);">${subject}</div>
-            <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${fromName}</div>
-          </div>`;
-        }).join('');
-      }
-      connected.add('mail'); refreshCount();
-    }catch(err){
-      console.error('gmail load failed', err);
-      setTileLive('mail', 'Connection error');
-      bodyEl.innerHTML = `<div class="tile-hint" style="color:var(--rose-bright);">${err.message}</div>`;
-    }
-  }
-
-  async function loadCalendar(){
-    const bodyEl = setTileLive('agenda', 'Connecting…');
-    try{
-      const token = await getValidGoogleToken();
-      if(!token) throw new Error('Not connected');
-      const params = new URLSearchParams({
-        timeMin: new Date().toISOString(),
-        maxResults: 5,
-        singleEvents: 'true',
-        orderBy: 'startTime'
-      });
-      const res = await fetchWithTimeout('https://www.googleapis.com/calendar/v3/calendars/primary/events?' + params, {
-        headers: { Authorization: 'Bearer ' + token }
-      });
-      const data = await res.json();
-      if(!res.ok) throw new Error((data.error && data.error.message) || 'Calendar fetch failed');
-      setTileLive('agenda', 'Live — Google Calendar');
-      const items = data.items || [];
-      if(!items.length){
-        bodyEl.innerHTML = '<div class="tile-hint">No upcoming events.</div>';
-      } else {
-        bodyEl.innerHTML = items.map(ev => {
-          const start = ev.start.dateTime
-            ? new Date(ev.start.dateTime).toLocaleString([], { weekday:'short', hour:'2-digit', minute:'2-digit' })
-            : ev.start.date;
-          return `<div style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
-            <div style="font-size:13px; color:var(--text);">${ev.summary || '(untitled)'}</div>
-            <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${start}</div>
-          </div>`;
-        }).join('');
-      }
-      connected.add('agenda'); refreshCount();
-    }catch(err){
-      console.error('calendar load failed', err);
-      setTileLive('agenda', 'Connection error');
-      bodyEl.innerHTML = `<div class="tile-hint" style="color:var(--rose-bright);">${err.message}</div>`;
-    }
-  }
-
-  function wireGoogleConnectButtons(){
-    ['mail', 'agenda'].forEach(mod => {
-      const btn = document.querySelector(`button[data-module="${mod}"]`);
-      if(btn) btn.addEventListener('click', (e) => { e.stopPropagation(); connectGoogle(); });
+  ['mail', 'agenda'].forEach(mod => {
+    const btn = document.querySelector(`button[data-module="${mod}"]`);
+    if(btn) btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(mod === 'mail') loadGmail(); else loadCalendar();
     });
-  }
-  wireGoogleConnectButtons();
+  });
 
-  // On load: handle the OAuth redirect back from Google, if present, then
-  // load Gmail/Calendar from any already-stored (and still-valid-or-refreshable) tokens.
-  (async function initGoogle(){
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    if(code){
-      history.replaceState({}, '', window.location.pathname); // strip ?code= from the URL
-      try{
-        await exchangeCodeForTokens(code);
-      }catch(err){
-        console.error('google token exchange failed', err);
-        setTileLive('mail', 'Connection error');
-        alert('Google sign-in failed: ' + err.message);
-        return;
-      }
-    }
-    if(localStorage.getItem('google_tokens')){
-      loadGmail();
-      loadCalendar();
-    }
-  })();
+  // Auto-load on page open, same as weather/markets
+  loadGmail();
+  loadCalendar();
 </script>
 
 </body>
