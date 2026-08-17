@@ -49,6 +49,7 @@ export default async function handler(req, res) {
         clientEmail: p.clientEmail || '',
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
+        status: p.status || null,
         trackCount: p.tracks ? Object.keys(p.tracks).length : 0,
         brief: p.brief || null,
         tracks: p.tracks || null
