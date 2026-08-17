@@ -1698,7 +1698,8 @@
   }
 
   const newsBtn = document.querySelector('button[data-module="news"]');
-  if(newsBtn) newsBtn.remove();
+  if(newsBtn) newsBtn.style.display = 'none';
+  addRefreshIcon('news', loadNews);
   loadNews();
 
   // ---- Mastering (Firebase Realtime Database) ----
