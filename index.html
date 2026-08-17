@@ -1480,6 +1480,8 @@
   // in Google Cloud Console → Credentials → this OAuth client's
   // Authorized redirect URIs.
   const GOOGLE_CLIENT_ID = '82698009173-k1umel8li3rd6ghb6e9vgodi0i8vo3n6.apps.googleusercontent.com';
+  // The client secret is NOT here — it lives server-side in /api/google-token.js
+  // as a Vercel environment variable, and never touches the browser or the repo.
   const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly';
   const GOOGLE_REDIRECT_URI = window.location.origin + window.location.pathname;
 
@@ -1517,14 +1519,13 @@
 
   async function exchangeCodeForTokens(code){
     const verifier = localStorage.getItem('google_pkce_verifier');
-    const res = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
+    const res = await fetchWithTimeout('/api/google-token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'authorization_code',
         code: code,
         code_verifier: verifier,
-        grant_type: 'authorization_code',
         redirect_uri: GOOGLE_REDIRECT_URI
       })
     }, 15000);
@@ -1545,13 +1546,12 @@
   async function refreshGoogleToken(){
     const stored = JSON.parse(localStorage.getItem('google_tokens') || 'null');
     if(!stored || !stored.refresh_token) return null;
-    const res = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
+    const res = await fetchWithTimeout('/api/google-token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        refresh_token: stored.refresh_token,
-        grant_type: 'refresh_token'
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'refresh_token',
+        refresh_token: stored.refresh_token
       })
     }, 15000);
     const data = await res.json();
