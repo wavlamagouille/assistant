@@ -258,6 +258,7 @@
   .transit-conn{ padding:12px 0; border-bottom:1px solid var(--line); cursor:pointer; transition:opacity .15s ease; }
   .transit-conn:hover{ opacity:.8; }
   .transit-conn:last-child{ border-bottom:none; }
+  .transit-sbb-link:hover{ text-decoration:underline; }
   .precip-outlook{ display:flex; align-items:flex-end; gap:3px; height:56px; }
   .precip-bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:3px; }
   .precip-bar{ width:100%; max-width:14px; background:var(--rose-bright); opacity:.75; border-radius:1px 1px 0 0; min-height:2px; }
@@ -2161,6 +2162,16 @@
   // Rough CHF estimate from straight-line distance between first departure and
   // last arrival. Real SBB fares use a zone/distance model this open API doesn't
   // expose — this is a ballpark only, labeled as such, not a bookable price.
+  // Official SBB deep-linking format (per SBB's own community-documented guide) —
+  // opens sbb.ch with this exact route/time pre-filled so real pricing can be checked.
+  function sbbDeepLink(fromName, toName, isoDatetime){
+    const d = new Date(isoDatetime);
+    const datum = String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0') + '.' + d.getFullYear();
+    const zeit = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+    const params = new URLSearchParams({ von: fromName, nach: toName, datum, zeit, suche: 'true' });
+    return 'https://www.sbb.ch/en/buying/pages/fahrplan/fahrplan.xhtml?' + params.toString();
+  }
+
   function estimateFareCHF(connection){
     const sections = (connection.sections || []).filter(s => s.departure && s.arrival);
     if(!sections.length) return null;
@@ -2177,7 +2188,7 @@
     return Math.round(fare);
   }
 
-  function renderTransitConnections(connections){
+  function renderTransitConnections(connections, fromName, toName){
     const body = document.getElementById('transitModalBody');
     body.innerHTML = connections.map((c, i) => {
       const dep = new Date(c.from.departure).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
@@ -2191,6 +2202,7 @@
       const transferCount = c.transfers || 0;
       const transfersStr = transferCount === 0 ? 'Direct' : transferCount + (transferCount === 1 ? ' transfer' : ' transfers');
       const fare = estimateFareCHF(c);
+      const sbbUrl = sbbDeepLink(fromName, toName, c.from.departure);
       const legs = (c.sections || []).filter(s => s.journey || s.walk).map(s => {
         if(s.walk) return `<div class="transit-leg"><div class="transit-leg-dot"></div>Walk${s.walk.duration ? ' · ' + Math.round(s.walk.duration/60) + ' min' : ''}</div>`;
         const line = s.journey ? ((s.journey.category || '') + (s.journey.number || '')) : '';
@@ -2204,15 +2216,19 @@
             <div style="font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--text);">${dep} → ${arr}</div>
             <div style="text-align:right;">
               <div style="font-size:11px; color:var(--text-dim);">${durationStr} · ${transfersStr}</div>
-              ${fare ? `<div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--rose-bright);">~CHF ${fare}</div>` : ''}
+              ${fare ? `<div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim);">~CHF ${fare} est.</div>` : ''}
             </div>
           </div>
           <div style="margin-top:4px;">${legs}</div>
+          <a href="${sbbUrl}" target="_blank" rel="noopener" class="transit-sbb-link" style="display:inline-block; margin-top:6px; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--rose-bright);">Check real price on SBB.ch →</a>
         </div>`;
-    }).join('') + `<div class="tile-hint" style="margin-top:10px; color:var(--text-dim); font-size:10px;">Prices are rough distance-based estimates, not real fares — SBB doesn't expose actual pricing via open data. Check sbb.ch for exact cost.</div>`;
+    }).join('') + `<div class="tile-hint" style="margin-top:10px; color:var(--text-dim); font-size:10px;">CHF figures above are rough distance estimates, not real fares. Click "Check real price on SBB.ch" on any connection for the actual cost.</div>`;
 
     body.querySelectorAll('.transit-conn').forEach(el => {
-      el.addEventListener('click', () => showTransitRouteOnMap(connections[Number(el.dataset.connIdx)]));
+      el.addEventListener('click', (e) => {
+        if(e.target.closest('.transit-sbb-link')) return; // let the link open normally
+        showTransitRouteOnMap(connections[Number(el.dataset.connIdx)]);
+      });
     });
   }
 
@@ -2253,7 +2269,7 @@
 
   function openTransitModal(connections, from, to){
     document.getElementById('transitModalTitle').textContent = from.toUpperCase() + ' → ' + to.toUpperCase();
-    renderTransitConnections(connections);
+    renderTransitConnections(connections, from, to);
     document.getElementById('transitModalBackdrop').classList.add('show');
     showTransitRouteOnMap(connections[0]);
   }
