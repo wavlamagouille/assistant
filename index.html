@@ -259,7 +259,21 @@
   }
   .tile:hover::before{ background:var(--rose-bright); }
 
-  .tile-head{ display:flex; align-items:center; justify-content:space-between; }
+  .tile-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .tile-head .tile-head-right{ display:flex; align-items:center; gap:8px; }
+  .icon-refresh-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; flex-shrink:0;
+    background:none; border:none;
+    color:var(--text-dim);
+    cursor:pointer;
+    border-radius:50%;
+    padding:0;
+    transition:color .15s ease, background .15s ease;
+  }
+  .icon-refresh-btn:hover{ color:var(--rose-bright); background:rgba(225,29,72,.12); }
+  .icon-refresh-btn svg{ transition:transform .5s ease; }
+  .icon-refresh-btn.spinning svg{ transform:rotate(360deg); }
   .tile-name{
     font-family:'Bebas Neue', sans-serif;
     font-size:19px;
@@ -561,7 +575,9 @@
     tile.innerHTML = `
       <div class="tile-head">
         <div class="tile-name">${m.name}</div>
-        <div class="tile-idx">${m.idx}</div>
+        <div class="tile-head-right">
+          <div class="tile-idx">${m.idx}</div>
+        </div>
       </div>
       <div class="tile-state off">Not connected</div>
       <div class="tile-body">
@@ -693,6 +709,28 @@
     95:'storm', 96:'storm', 99:'storm'
   };
 
+  // Small circular refresh icon in the tile header, replacing the old big
+  // text "Refresh" buttons. Spins briefly on click for feedback.
+  const REFRESH_ICON_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>`;
+
+  function addRefreshIcon(mod, onRefresh){
+    const tile = document.querySelector(`[data-module="${mod}"]`);
+    const right = tile.querySelector('.tile-head-right');
+    if(!right || right.querySelector('.icon-refresh-btn')) return;
+    const btn = document.createElement('button');
+    btn.className = 'icon-refresh-btn';
+    btn.title = 'Refresh';
+    btn.setAttribute('aria-label', 'Refresh');
+    btn.innerHTML = REFRESH_ICON_SVG;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      btn.classList.add('spinning');
+      setTimeout(() => btn.classList.remove('spinning'), 500);
+      onRefresh();
+    });
+    right.appendChild(btn);
+  }
+
   async function connectWeather(){
     const tile = document.querySelector('[data-module="weather"]').closest('.tile');
     const stateEl = tile.querySelector('.tile-state');
@@ -724,11 +762,8 @@
         <div class="tile-hint">${desc} · wind ${Math.round(cur.wind_speed_10m)} km/h</div>
         <div class="tile-hint" style="color:var(--text-dim);">day ${tmax}° / night ${tmin}°</div>
       `;
-      btn.textContent = 'Refresh';
-      btn.disabled = false;
-      btn.style.opacity = 1;
-      btn.style.cursor = 'pointer';
-      btn.onclick = (e) => { e.stopPropagation(); connectWeather(); };
+      btn.style.display = 'none';
+      addRefreshIcon('weather', connectWeather);
 
       connected.add('weather');
       refreshCount();
@@ -1234,11 +1269,8 @@
     stateEl.textContent = ok ? 'Live — CoinGecko + Twelve Data' : 'Connection error';
     bodyEl.innerHTML = cryptoHTML + stocksHTML;
 
-    btn.textContent = 'Refresh';
-    btn.disabled = false;
-    btn.style.opacity = 1;
-    btn.style.cursor = 'pointer';
-    btn.onclick = (e) => { e.stopPropagation(); connectMarkets(); };
+    btn.style.display = 'none';
+    addRefreshIcon('markets', connectMarkets);
 
     if(ok){ connected.add('markets'); refreshCount(); }
   }
@@ -1627,11 +1659,10 @@
 
   ['mail', 'agenda'].forEach(mod => {
     const btn = document.querySelector(`button[data-module="${mod}"]`);
-    if(btn) btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if(mod === 'mail') loadGmail(); else loadCalendar();
-    });
+    if(btn) btn.style.display = 'none';
   });
+  addRefreshIcon('mail', loadGmail);
+  addRefreshIcon('agenda', loadCalendar);
 
   // Auto-load on page open, same as weather/markets
   loadGmail();
@@ -1774,13 +1805,8 @@
   });
 
   const masteringBtn = document.querySelector('button[data-module="mastering"]');
-  if(masteringBtn){
-    masteringBtn.textContent = 'Refresh';
-    masteringBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      loadMastering();
-    });
-  }
+  if(masteringBtn) masteringBtn.style.display = 'none';
+  addRefreshIcon('mastering', loadMastering);
   loadMastering();
 
   document.querySelector('[data-module="mastering"]').addEventListener('click', (e) => {
