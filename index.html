@@ -1584,7 +1584,7 @@
   }
 
   const newsBtn = document.querySelector('button[data-module="news"]');
-  if(newsBtn) newsBtn.addEventListener('click', (e) => { e.stopPropagation(); loadNews(); });
+  if(newsBtn) newsBtn.remove();
   loadNews();
 </script>
 
