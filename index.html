@@ -610,15 +610,13 @@
   // These modules aren't fake-"coming soon" — they genuinely need something
   // from Flo before they can go live (credentials, a project config, an API key).
   // Clicking Connect tells you exactly what's missing instead of pretending.
-  const NEEDS = {
-    mastering: "Needs your Wavaudiolab Firebase project config to read submissions."
-  };
+  const NEEDS = {};
 
   grid.addEventListener('click', (e) => {
     const btn = e.target.closest('.tile-cta');
     if(!btn) return;
     const mod = btn.dataset.module;
-    if(mod === 'weather' || mod === 'markets' || mod === 'chat' || mod === 'mail' || mod === 'agenda' || mod === 'news') return; // already live
+    if(mod === 'weather' || mod === 'markets' || mod === 'chat' || mod === 'mail' || mod === 'agenda' || mod === 'news' || mod === 'mastering') return; // already live
 
     const tile = btn.closest('.tile');
     const stateEl = tile.querySelector('.tile-state');
@@ -1661,6 +1659,34 @@
   const newsBtn = document.querySelector('button[data-module="news"]');
   if(newsBtn) newsBtn.remove();
   loadNews();
+
+  // ---- Mastering (Firebase Realtime Database) ----
+  // First pass: show the raw data structure so we can see the real shape
+  // and refine the rendering to match actual field names.
+  async function loadMastering(){
+    const bodyEl = setTileLive('mastering', 'Connecting…');
+    try{
+      const res = await fetchWithTimeout('/api/mastering');
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Mastering fetch failed');
+      setTileLive('mastering', 'Live — Firebase (raw view)');
+      const raw = data.raw;
+      if(!raw){
+        bodyEl.innerHTML = '<div class="tile-hint">Database is empty.</div>';
+      } else {
+        bodyEl.innerHTML = `<pre style="width:100%; white-space:pre-wrap; word-break:break-word; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-mid); margin:0;">${JSON.stringify(raw, null, 2).replace(/</g,'&lt;')}</pre>`;
+      }
+      connected.add('mastering'); refreshCount();
+    }catch(err){
+      console.error('mastering load failed', err);
+      setTileLive('mastering', 'Connection error');
+      bodyEl.innerHTML = `<div class="tile-hint" style="color:var(--rose-bright);">${err.message}</div>`;
+    }
+  }
+
+  const masteringBtn = document.querySelector('button[data-module="mastering"]');
+  if(masteringBtn) masteringBtn.remove();
+  loadMastering();
 </script>
 
 </body>
