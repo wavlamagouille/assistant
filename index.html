@@ -471,6 +471,16 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="projectModalBackdrop">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <div class="modal-title" id="projectModalTitle">PROJECT</div>
+        <button class="modal-close" id="projectModalClose">✕</button>
+      </div>
+      <div id="projectModalBody" style="padding:20px; overflow-y:auto; max-height:70vh;"></div>
+    </div>
+  </div>
+
 <script>
   // ---- boot bars ----
   const bootBars = document.getElementById('bootBars');
@@ -1663,6 +1673,8 @@
   // ---- Mastering (Firebase Realtime Database) ----
   // First pass: show the raw data structure so we can see the real shape
   // and refine the rendering to match actual field names.
+  let masteringProjects = [];
+
   async function loadMastering(){
     const bodyEl = setTileLive('mastering', 'Connecting…');
     try{
@@ -1670,14 +1682,14 @@
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || 'Mastering fetch failed');
       setTileLive('mastering', 'Live — Firebase');
-      const projects = data.projects || [];
-      if(!projects.length){
+      masteringProjects = data.projects || [];
+      if(!masteringProjects.length){
         bodyEl.innerHTML = '<div class="tile-hint">No pending jobs.</div>';
       } else {
-        bodyEl.innerHTML = projects.map(p => {
+        bodyEl.innerHTML = masteringProjects.map((p, i) => {
           const date = p.createdAt ? new Date(p.createdAt).toLocaleDateString([], { month:'short', day:'numeric' }) : '';
           const tracks = p.trackCount === 1 ? '1 track' : p.trackCount + ' tracks';
-          return `<div style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
+          return `<div class="coin-row" data-project-idx="${i}" style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
             <div style="font-size:13px; color:var(--text);">${p.clientName}</div>
             <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${date} · ${tracks}</div>
           </div>`;
@@ -1691,9 +1703,65 @@
     }
   }
 
+  // Renders any value generically — handles plain values, arrays, and nested
+  // objects (like brief/tracks, whose exact fields we don't hardcode) as
+  // clean label/value rows, however deep they go.
+  function renderDetailValue(val){
+    if(val === null || val === undefined || val === '') return '<span style="color:var(--text-dim);">—</span>';
+    if(typeof val !== 'object') return String(val);
+    return '<div style="padding-left:14px; border-left:1px solid var(--line); margin-top:4px;">' +
+      Object.entries(val).map(([k, v]) => `
+        <div style="margin-bottom:8px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.08em; color:var(--text-dim); text-transform:uppercase;">${k}</div>
+          <div style="font-size:13px; color:var(--text);">${renderDetailValue(v)}</div>
+        </div>`).join('') +
+      '</div>';
+  }
+
+  function openProjectModal(p){
+    document.getElementById('projectModalTitle').textContent = p.clientName || 'PROJECT';
+    const date = p.createdAt ? new Date(p.createdAt).toLocaleString() : '—';
+    const rows = [
+      ['Client', p.clientName],
+      ['Email', p.clientEmail],
+      ['Submitted', date],
+      ['ID', p.id]
+    ];
+    let html = rows.map(([k, v]) => `
+      <div style="margin-bottom:10px;">
+        <div style="font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.08em; color:var(--text-dim); text-transform:uppercase;">${k}</div>
+        <div style="font-size:13px; color:var(--text);">${renderDetailValue(v)}</div>
+      </div>`).join('');
+    if(p.brief){
+      html += `<div style="margin:16px 0 10px; padding-top:14px; border-top:1px solid var(--line); font-family:'Bebas Neue',sans-serif; font-size:15px; color:var(--text);">BRIEF</div>`;
+      html += renderDetailValue(p.brief);
+    }
+    if(p.tracks){
+      html += `<div style="margin:16px 0 10px; padding-top:14px; border-top:1px solid var(--line); font-family:'Bebas Neue',sans-serif; font-size:15px; color:var(--text);">TRACKS</div>`;
+      html += renderDetailValue(p.tracks);
+    }
+    document.getElementById('projectModalBody').innerHTML = html;
+    document.getElementById('projectModalBackdrop').classList.add('show');
+  }
+
+  function closeProjectModal(){
+    document.getElementById('projectModalBackdrop').classList.remove('show');
+  }
+  document.getElementById('projectModalClose').addEventListener('click', closeProjectModal);
+  document.getElementById('projectModalBackdrop').addEventListener('click', (e) => {
+    if(e.target.id === 'projectModalBackdrop') closeProjectModal();
+  });
+
   const masteringBtn = document.querySelector('button[data-module="mastering"]');
   if(masteringBtn) masteringBtn.remove();
   loadMastering();
+
+  document.querySelector('[data-module="mastering"]').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-project-idx]');
+    if(!row) return;
+    const p = masteringProjects[Number(row.dataset.projectIdx)];
+    if(p) openProjectModal(p);
+  });
 </script>
 
 </body>
