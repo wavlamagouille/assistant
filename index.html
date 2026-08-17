@@ -1795,14 +1795,28 @@
       if(!masteringItems.length){
         bodyEl.innerHTML = '<div class="tile-hint">No pending jobs or quote requests.</div>';
       } else {
+        function statusColor(status){
+          const s = (status || '').toLowerCase();
+          if(/new|pending|received/.test(s)) return '#60a5fa';
+          if(/progress|working|master/.test(s)) return '#fbbf24';
+          if(/review|revision/.test(s)) return '#a78bfa';
+          if(/done|complete|delivered|finish/.test(s)) return '#4ade80';
+          if(/cancel|reject|declin/.test(s)) return '#e11d48';
+          return '#71717a';
+        }
         const renderRow = (p, idx) => {
           const date = p.createdAt ? new Date(p.createdAt).toLocaleDateString([], { month:'short', day:'numeric' }) : '';
-          const detail = p.type === 'job'
-            ? (p.trackCount === 1 ? '1 track' : p.trackCount + ' tracks')
-            : (p.status || 'new');
-          return `<div class="coin-row" data-item-idx="${idx}" style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
-            <div style="font-size:13px; color:var(--text);">${p.clientName}</div>
-            <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${date} · ${detail}</div>
+          const extra = p.type === 'job' ? (p.trackCount === 1 ? '1 track' : p.trackCount + ' tracks') : '';
+          const status = p.status || (p.type === 'job' ? null : 'new');
+          const badge = status
+            ? `<span style="font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:${statusColor(status)}; border:1px solid ${statusColor(status)}; border-radius:2px; padding:2px 6px; flex-shrink:0;">${status}</span>`
+            : '';
+          return `<div class="coin-row" data-item-idx="${idx}" style="width:100%; padding:6px 0; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <div style="min-width:0;">
+              <div style="font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.clientName}</div>
+              <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${date}${extra ? ' · ' + extra : ''}</div>
+            </div>
+            ${badge}
           </div>`;
         };
         let html = '';
