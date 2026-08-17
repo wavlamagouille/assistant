@@ -246,6 +246,17 @@
   .city-suggestion:hover{ background:var(--bg); }
   .city-suggestion .cs-name{ color:var(--text); }
   .city-suggestion .cs-region{ color:var(--text-dim); font-family:'JetBrains Mono', monospace; font-size:11px; white-space:nowrap; }
+
+  .transit-input{
+    background:var(--bg); border:1px solid var(--line); border-radius:2px;
+    color:var(--text); padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none;
+  }
+  .transit-input::-webkit-calendar-picker-indicator{ filter:invert(1); cursor:pointer; opacity:.7; }
+  .transit-leg{ display:flex; align-items:center; gap:8px; padding:3px 0; font-size:12px; color:var(--text-mid); }
+  .transit-leg-dot{ width:6px; height:6px; border-radius:50%; background:var(--rose-bright); flex-shrink:0; }
+  .transit-conn{ padding:12px 0; border-bottom:1px solid var(--line); cursor:pointer; transition:opacity .15s ease; }
+  .transit-conn:hover{ opacity:.8; }
+  .transit-conn:last-child{ border-bottom:none; }
   .precip-outlook{ display:flex; align-items:flex-end; gap:3px; height:56px; }
   .precip-bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:3px; }
   .precip-bar{ width:100%; max-width:14px; background:var(--rose-bright); opacity:.75; border-radius:1px 1px 0 0; min-height:2px; }
@@ -556,6 +567,17 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="transitModalBackdrop">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <div class="modal-title" id="transitModalTitle">CONNECTIONS</div>
+        <button class="modal-close" id="transitModalClose">✕</button>
+      </div>
+      <div id="transitModalMap" class="radar-modal-map" style="height:280px;"></div>
+      <div id="transitModalBody" style="padding:16px 20px; overflow-y:auto; max-height:40vh;"></div>
+    </div>
+  </div>
+
 <script>
   // ---- boot bars ----
   const bootBars = document.getElementById('bootBars');
@@ -619,6 +641,7 @@
     { id:'markets',  name:'MARKETS',    idx:'04', hint:'Tracked crypto & asset prices, with charts.' },
     { id:'news',     name:'NEWS',       idx:'05', hint:'BBC, CoinDesk, and Attack Magazine headlines.' },
     { id:'mastering',name:'MASTERING',  idx:'06', hint:'Status of Wavaudiolab client submissions.' },
+    { id:'transit',  name:'TRANSIT',    idx:'08', hint:'Swiss public transport connections (CFF & more).' },
   ];
 
   const grid = document.getElementById('grid');
@@ -632,7 +655,8 @@
     markets: { w:4,  h:5 },
     news:    { w:4,  h:5 },
     mastering:{ w:4, h:5 },
-    notes:   { w:4,  h:5 }
+    notes:   { w:4,  h:5 },
+    transit: { w:6,  h:5 }
   };
 
   function wrapAsGridItem(id, tileEl){
@@ -724,7 +748,7 @@
     const btn = e.target.closest('.tile-cta');
     if(!btn) return;
     const mod = btn.dataset.module;
-    if(mod === 'weather' || mod === 'markets' || mod === 'chat' || mod === 'mail' || mod === 'agenda' || mod === 'news' || mod === 'mastering') return; // already live
+    if(mod === 'weather' || mod === 'markets' || mod === 'chat' || mod === 'mail' || mod === 'agenda' || mod === 'news' || mod === 'mastering' || mod === 'transit') return; // already live
 
     const tile = btn.closest('.tile');
     const stateEl = tile.querySelector('.tile-state');
@@ -1498,6 +1522,7 @@
     if(e.key !== 'Escape') return;
     closeChart();
     closeRadarModal();
+    closeTransitModal();
   });
 
   grid.addEventListener('click', (e) => {
@@ -1928,6 +1953,216 @@
     localStorage.removeItem('quick_notes');
     notesArea.focus({ preventScroll: true });
   });
+
+  // ---- Transit (transport.opendata.ch — Swiss public transport, no key needed) ----
+  function augmentTransitTile(){
+    const tile = document.querySelector('[data-module="transit"]');
+    const stateEl = tile.querySelector('.tile-state');
+    if(stateEl) stateEl.remove();
+    const oldBtn = tile.querySelector('button[data-module="transit"]');
+    if(oldBtn) oldBtn.remove();
+    const bodyEl = tile.querySelector('.tile-body');
+
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const timeStr = now.toTimeString().slice(0, 5);
+
+    bodyEl.innerHTML = `
+      <div style="width:100%; display:flex; flex-direction:column; gap:8px;">
+        <div style="position:relative;">
+          <input id="transitFrom" type="text" class="transit-input" style="width:100%; box-sizing:border-box;" placeholder="From…" value="Rolle, VD" autocomplete="off">
+          <div id="transitFromSuggestions" class="city-suggestions"></div>
+        </div>
+        <div style="position:relative;">
+          <input id="transitTo" type="text" class="transit-input" style="width:100%; box-sizing:border-box;" placeholder="To…" autocomplete="off">
+          <div id="transitToSuggestions" class="city-suggestions"></div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <input id="transitDate" type="date" class="transit-input" style="flex:1; min-width:0;" value="${todayStr}">
+          <input id="transitTime" type="time" class="transit-input" style="flex:1; min-width:0;" value="${timeStr}">
+        </div>
+        <button class="tile-cta" id="transitSearchBtn" style="margin-top:2px;">Search</button>
+        <div id="transitMsg" class="tile-hint" style="display:none; color:var(--rose-bright);"></div>
+      </div>
+    `;
+
+    let transitMsgTimer = null;
+    function showTransitMsg(text){
+      const msg = document.getElementById('transitMsg');
+      clearTimeout(transitMsgTimer);
+      msg.textContent = text;
+      msg.style.display = 'block';
+      transitMsgTimer = setTimeout(() => { msg.style.display = 'none'; }, 5000);
+    }
+
+    function wireStationAutocomplete(inputId, suggBoxId){
+      const input = document.getElementById(inputId);
+      const box = document.getElementById(suggBoxId);
+      let debounceTimer = null;
+      input.addEventListener('input', () => {
+        const q = input.value.trim();
+        clearTimeout(debounceTimer);
+        if(q.length < 2){ box.classList.remove('show'); return; }
+        debounceTimer = setTimeout(async () => {
+          try{
+            const res = await fetchWithTimeout(`https://transport.opendata.ch/v1/locations?query=${encodeURIComponent(q)}&type=station`, null, 6000);
+            const data = await res.json();
+            const stations = (data.stations || []).filter(s => s.id).slice(0, 6);
+            if(!stations.length){ box.classList.remove('show'); return; }
+            box.innerHTML = stations.map((s, i) => `
+              <div class="city-suggestion" data-idx="${i}"><span class="cs-name">${s.name}</span></div>
+            `).join('');
+            box.classList.add('show');
+            box.querySelectorAll('.city-suggestion').forEach((el, i) => {
+              el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                input.value = stations[i].name;
+                box.classList.remove('show');
+              });
+            });
+          }catch(err){ console.error('transit location search failed', err); }
+        }, 300);
+      });
+    }
+    wireStationAutocomplete('transitFrom', 'transitFromSuggestions');
+    wireStationAutocomplete('transitTo', 'transitToSuggestions');
+
+    document.addEventListener('click', (e) => {
+      if(!e.target.closest('#transitFrom') && !e.target.closest('#transitFromSuggestions')){
+        document.getElementById('transitFromSuggestions').classList.remove('show');
+      }
+      if(!e.target.closest('#transitTo') && !e.target.closest('#transitToSuggestions')){
+        document.getElementById('transitToSuggestions').classList.remove('show');
+      }
+    });
+
+    async function searchTransit(){
+      const from = document.getElementById('transitFrom').value.trim();
+      const to = document.getElementById('transitTo').value.trim();
+      const date = document.getElementById('transitDate').value;
+      const time = document.getElementById('transitTime').value;
+      const btn = document.getElementById('transitSearchBtn');
+
+      if(!from || !to){
+        showTransitMsg('Enter both a departure and destination.');
+        return;
+      }
+
+      btn.textContent = 'Searching…';
+      btn.disabled = true;
+      try{
+        const params = new URLSearchParams({ from, to, limit: 4 });
+        if(date) params.set('date', date);
+        if(time) params.set('time', time);
+        const res = await fetchWithTimeout('https://transport.opendata.ch/v1/connections?' + params.toString(), null, 10000);
+        const data = await res.json();
+        if(!res.ok) throw new Error('HTTP ' + res.status);
+        const connections = data.connections || [];
+        if(!connections.length){
+          showTransitMsg('No connections found.');
+        } else {
+          openTransitModal(connections, from, to);
+        }
+      }catch(err){
+        console.error('transit search failed', err);
+        showTransitMsg('Search failed: ' + err.message);
+      }
+      btn.textContent = 'Search';
+      btn.disabled = false;
+    }
+
+    document.getElementById('transitSearchBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      searchTransit();
+    });
+  }
+
+  function renderTransitConnections(connections){
+    const body = document.getElementById('transitModalBody');
+    body.innerHTML = connections.map((c, i) => {
+      const dep = new Date(c.from.departure).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+      const arr = new Date(c.to.arrival).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+      const durMatch = (c.duration || '').match(/(\d+)d(\d+):(\d+)/);
+      let durationStr = c.duration || '';
+      if(durMatch){
+        const hours = parseInt(durMatch[2], 10) + parseInt(durMatch[1], 10) * 24;
+        durationStr = (hours ? hours + 'h ' : '') + durMatch[3] + 'm';
+      }
+      const transferCount = c.transfers || 0;
+      const transfersStr = transferCount === 0 ? 'Direct' : transferCount + (transferCount === 1 ? ' transfer' : ' transfers');
+      const legs = (c.sections || []).filter(s => s.journey || s.walk).map(s => {
+        if(s.walk) return `<div class="transit-leg"><div class="transit-leg-dot"></div>Walk${s.walk.duration ? ' · ' + Math.round(s.walk.duration/60) + ' min' : ''}</div>`;
+        const line = s.journey ? ((s.journey.category || '') + (s.journey.number || '')) : '';
+        const depName = s.departure && s.departure.station ? s.departure.station.name : '';
+        const arrName = s.arrival && s.arrival.station ? s.arrival.station.name : '';
+        return `<div class="transit-leg"><div class="transit-leg-dot"></div>${line} ${depName} → ${arrName}</div>`;
+      }).join('');
+      return `
+        <div class="transit-conn" data-conn-idx="${i}">
+          <div style="display:flex; justify-content:space-between; align-items:baseline;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--text);">${dep} → ${arr}</div>
+            <div style="font-size:11px; color:var(--text-dim);">${durationStr} · ${transfersStr}</div>
+          </div>
+          <div style="margin-top:4px;">${legs}</div>
+        </div>`;
+    }).join('');
+
+    body.querySelectorAll('.transit-conn').forEach(el => {
+      el.addEventListener('click', () => showTransitRouteOnMap(connections[Number(el.dataset.connIdx)]));
+    });
+  }
+
+  let transitMapInstance = null;
+  async function showTransitRouteOnMap(connection){
+    const mapEl = document.getElementById('transitModalMap');
+    try{
+      await ensureLeaflet();
+      const points = [];
+      (connection.sections || []).forEach(s => {
+        if(s.departure && s.departure.station && s.departure.station.coordinate && s.departure.station.coordinate.x){
+          points.push({ lat: s.departure.station.coordinate.x, lon: s.departure.station.coordinate.y, name: s.departure.station.name });
+        }
+        if(s.arrival && s.arrival.station && s.arrival.station.coordinate && s.arrival.station.coordinate.x){
+          points.push({ lat: s.arrival.station.coordinate.x, lon: s.arrival.station.coordinate.y, name: s.arrival.station.name });
+        }
+      });
+      if(!points.length){
+        mapEl.innerHTML = '<div class="radar-placeholder">No map data for this route.</div>';
+        return;
+      }
+      mapEl.innerHTML = '';
+      if(transitMapInstance){ transitMapInstance.remove(); transitMapInstance = null; }
+      transitMapInstance = L.map('transitModalMap').setView([points[0].lat, points[0].lon], 9);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19
+      }).addTo(transitMapInstance);
+      const latlngs = points.map(p => [p.lat, p.lon]);
+      L.polyline(latlngs, { color:'#e11d48', weight:3 }).addTo(transitMapInstance);
+      points.forEach(p => L.marker([p.lat, p.lon]).addTo(transitMapInstance).bindPopup(p.name));
+      transitMapInstance.fitBounds(latlngs, { padding:[24,24] });
+      setTimeout(() => { transitMapInstance && transitMapInstance.invalidateSize(); }, 100);
+    }catch(err){
+      console.error('transit map failed', err);
+      mapEl.innerHTML = '<div class="radar-placeholder" style="color:var(--rose-bright);">Map failed to load.</div>';
+    }
+  }
+
+  function openTransitModal(connections, from, to){
+    document.getElementById('transitModalTitle').textContent = from.toUpperCase() + ' → ' + to.toUpperCase();
+    renderTransitConnections(connections);
+    document.getElementById('transitModalBackdrop').classList.add('show');
+    showTransitRouteOnMap(connections[0]);
+  }
+
+  function closeTransitModal(){
+    document.getElementById('transitModalBackdrop').classList.remove('show');
+  }
+  document.getElementById('transitModalClose').addEventListener('click', closeTransitModal);
+  document.getElementById('transitModalBackdrop').addEventListener('click', (e) => {
+    if(e.target.id === 'transitModalBackdrop') closeTransitModal();
+  });
+
+  augmentTransitTile();
 </script>
 
 </body>
