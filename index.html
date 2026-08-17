@@ -495,7 +495,7 @@
     { id:'mail',     name:'EMAIL',      idx:'02', hint:'Daily summary of your Gmail inbox.' },
     { id:'agenda',   name:'CALENDAR',   idx:'03', hint:'Upcoming Google Calendar events.' },
     { id:'markets',  name:'MARKETS',    idx:'04', hint:'Tracked crypto & asset prices, with charts.' },
-    { id:'news',     name:'NEWS',       idx:'05', hint:"Today's headlines, sources TBD." },
+    { id:'news',     name:'NEWS',       idx:'05', hint:'BBC, CoinDesk, and Attack Magazine headlines.' },
     { id:'mastering',name:'MASTERING',  idx:'06', hint:'Status of Wavaudiolab client submissions.' },
   ];
 
@@ -539,7 +539,6 @@
   // from Flo before they can go live (credentials, a project config, an API key).
   // Clicking Connect tells you exactly what's missing instead of pretending.
   const NEEDS = {
-    news:      'Needs an RSS source list or a news API key to pull headlines.',
     mastering: "Needs your Wavaudiolab Firebase project config to read submissions."
   };
 
@@ -547,7 +546,7 @@
     const btn = e.target.closest('.tile-cta');
     if(!btn) return;
     const mod = btn.dataset.module;
-    if(mod === 'weather' || mod === 'markets' || mod === 'chat' || mod === 'mail' || mod === 'agenda') return; // already live
+    if(mod === 'weather' || mod === 'markets' || mod === 'chat' || mod === 'mail' || mod === 'agenda' || mod === 'news') return; // already live
 
     const tile = btn.closest('.tile');
     const stateEl = tile.querySelector('.tile-state');
@@ -1554,6 +1553,39 @@
   // Auto-load on page open, same as weather/markets
   loadGmail();
   loadCalendar();
+
+  // ---- News (RSS, no key needed at all) ----
+  async function loadNews(){
+    const bodyEl = setTileLive('news', 'Connecting…');
+    try{
+      const res = await fetchWithTimeout('/api/news');
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'News fetch failed');
+      const label = data.failedSources && data.failedSources.length
+        ? 'Live — some sources down (' + data.failedSources.join(', ') + ')'
+        : 'Live — RSS';
+      setTileLive('news', label);
+      const items = data.items || [];
+      if(!items.length){
+        bodyEl.innerHTML = '<div class="tile-hint">No headlines available.</div>';
+      } else {
+        bodyEl.innerHTML = items.map(it => `
+          <a href="${it.link || '#'}" target="_blank" rel="noopener" style="width:100%; display:block; padding:6px 0; border-bottom:1px solid var(--line); text-decoration:none;">
+            <div style="font-size:13px; color:var(--text);">${it.title}</div>
+            <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${it.source}</div>
+          </a>`).join('');
+      }
+      connected.add('news'); refreshCount();
+    }catch(err){
+      console.error('news load failed', err);
+      setTileLive('news', 'Connection error');
+      bodyEl.innerHTML = `<div class="tile-hint" style="color:var(--rose-bright);">${err.message}</div>`;
+    }
+  }
+
+  const newsBtn = document.querySelector('button[data-module="news"]');
+  if(newsBtn) newsBtn.addEventListener('click', (e) => { e.stopPropagation(); loadNews(); });
+  loadNews();
 </script>
 
 </body>
