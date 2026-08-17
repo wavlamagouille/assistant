@@ -33,6 +33,30 @@ async function fetchPath(path, token){
   return data || {};
 }
 
+// Mirrors the intake app's own trackStatus()/projectStatus() logic exactly
+// (status was never a stored field — it's computed from each track's flags).
+function trackStatus(t){
+  if(t.approval) return 'approved';
+  if(t.needsRevision) return 'revisions';
+  if(t.versions && t.versions.length) return 'delivered';
+  if(t.needsMixFix) return 'mix_fixes';
+  if(t.mixApproved) return 'ready';
+  return 'new';
+}
+
+function computeProjectStatus(p){
+  if(p.payment && p.payment.status === 'paid') return 'paid';
+  const tracks = Object.values(p.tracks || {});
+  if(!tracks.length) return 'new';
+  const statuses = tracks.map(trackStatus);
+  if(statuses.every(s => s === 'approved')) return 'approved';
+  if(statuses.some(s => s === 'revisions')) return 'revisions';
+  if(statuses.some(s => s === 'delivered')) return 'delivered';
+  if(statuses.some(s => s === 'mix_fixes')) return 'mix_fixes';
+  if(statuses.some(s => s === 'ready')) return 'ready';
+  return 'new';
+}
+
 export default async function handler(req, res) {
   try {
     const token = await getAuthToken();
@@ -49,7 +73,7 @@ export default async function handler(req, res) {
         clientEmail: p.clientEmail || '',
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
-        status: p.status || null,
+        status: computeProjectStatus(p),
         trackCount: p.tracks ? Object.keys(p.tracks).length : 0,
         brief: p.brief || null,
         tracks: p.tracks || null
