@@ -1669,12 +1669,19 @@
       const res = await fetchWithTimeout('/api/mastering');
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || 'Mastering fetch failed');
-      setTileLive('mastering', 'Live — Firebase (raw view)');
-      const raw = data.raw;
-      if(!raw){
-        bodyEl.innerHTML = '<div class="tile-hint">Database is empty.</div>';
+      setTileLive('mastering', 'Live — Firebase');
+      const projects = data.projects || [];
+      if(!projects.length){
+        bodyEl.innerHTML = '<div class="tile-hint">No pending jobs.</div>';
       } else {
-        bodyEl.innerHTML = `<pre style="width:100%; white-space:pre-wrap; word-break:break-word; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-mid); margin:0;">${JSON.stringify(raw, null, 2).replace(/</g,'&lt;')}</pre>`;
+        bodyEl.innerHTML = projects.map(p => {
+          const date = p.createdAt ? new Date(p.createdAt).toLocaleDateString([], { month:'short', day:'numeric' }) : '';
+          const tracks = p.trackCount === 1 ? '1 track' : p.trackCount + ' tracks';
+          return `<div style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
+            <div style="font-size:13px; color:var(--text);">${p.clientName}</div>
+            <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${date} · ${tracks}</div>
+          </div>`;
+        }).join('');
       }
       connected.add('mastering'); refreshCount();
     }catch(err){
