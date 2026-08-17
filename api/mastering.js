@@ -44,8 +44,12 @@ export default async function handler(req, res) {
       .map(p => ({
         id: p.id,
         clientName: p.clientName || 'Unknown client',
+        clientEmail: p.clientEmail || '',
         createdAt: p.createdAt,
-        trackCount: p.tracks ? Object.keys(p.tracks).length : 0
+        updatedAt: p.updatedAt,
+        trackCount: p.tracks ? Object.keys(p.tracks).length : 0,
+        brief: p.brief || null,
+        tracks: p.tracks || null
       }))
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
