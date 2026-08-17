@@ -120,6 +120,27 @@
     text-transform:uppercase;
   }
   .status{ position:relative; display:flex; align-items:center; gap:22px; }
+
+  .quick-links{ position:relative; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .quick-link{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:20px; height:20px;
+    opacity:.7;
+    transition:opacity .15s ease, transform .15s ease;
+  }
+  .quick-link:hover{ opacity:1; transform:translateY(-1px); }
+  .quick-link img{ width:100%; height:100%; object-fit:contain; display:block; }
+  .quick-link-fallback{
+    display:none; width:20px; height:20px; border-radius:50%;
+    background:var(--bg-raised); border:1px solid var(--line);
+    align-items:center; justify-content:center;
+    font-family:'JetBrains Mono', monospace; font-size:8px; letter-spacing:.02em;
+    color:var(--text-mid);
+  }
+  .quick-link.fallback img{ display:none; }
+  .quick-link.fallback .quick-link-fallback{ display:flex; }
+  @media (max-width: 900px){ .quick-links{ display:none; } }
+
   .clock{
     font-family:'JetBrains Mono', monospace;
     text-align:right;
@@ -436,6 +457,7 @@
         <div class="mark">WAV<span>/</span>ASSISTANT</div>
         <div class="sub">Personal console</div>
       </div>
+      <div class="quick-links" id="quickLinks"></div>
       <div class="status">
         <div class="live"><div class="dot"></div><div class="txt">Online</div></div>
         <div class="clock">
@@ -530,6 +552,27 @@
   }
   tick(); setInterval(tick, 1000);
 
+  // ---- quick links (Simple Icons CDN - free, accurate brand icons, CC0) ----
+  const QUICK_LINKS = [
+    { name:'YouTube',      url:'https://youtube.com',      slug:'youtube',      color:'FF0000', short:'YT' },
+    { name:'Twitch',       url:'https://twitch.tv',        slug:'twitch',       color:'9146FF', short:'TW' },
+    { name:'Instagram',    url:'https://instagram.com',    slug:'instagram',    color:'E4405F', short:'IG' },
+    { name:'UFC.TV',       url:'https://ufc.tv',           slug:'ufc',          color:'D20A0A', short:'UFC' },
+    { name:'Kick',         url:'https://kick.com',         slug:'kick',         color:'53FC18', short:'K' },
+    { name:'SoundCloud',   url:'https://soundcloud.com',   slug:'soundcloud',   color:'FF5500', short:'SC' },
+    { name:'GitHub',       url:'https://github.com',       slug:'github',       color:'FFFFFF', short:'GH' },
+    { name:'SwissTransfer',url:'https://www.swisstransfer.com', slug:'swisstransfer', color:'CC0000', short:'ST' }
+  ];
+  const quickLinksEl = document.getElementById('quickLinks');
+  quickLinksEl.innerHTML = QUICK_LINKS.map(l => `
+    <a href="${l.url}" target="_blank" rel="noopener" class="quick-link" title="${l.name}">
+      <img src="https://cdn.simpleicons.org/${l.slug}/${l.color}" alt="${l.name}"
+           onerror="this.parentElement.classList.add('fallback')">
+      <span class="quick-link-fallback">${l.short}</span>
+    </a>
+  `).join('');
+
+
   // ---- modules ----
   const modules = [
     { id:'weather',  name:'WEATHER',    idx:'01', hint:"Today's local forecast." },
@@ -551,6 +594,7 @@
     markets: { w:4,  h:5 },
     news:    { w:4,  h:5 },
     mastering:{ w:4, h:5 },
+    notes:   { w:4,  h:5 },
     chat:    { w:12, h:6 }
   };
 
@@ -599,6 +643,19 @@
     <button class="tile-cta" id="chatActivateBtn" data-module="chat">Activate</button>
   `;
   grid.appendChild(wrapAsGridItem('chat', chat));
+
+  const notes = document.createElement('div');
+  notes.className = 'tile';
+  notes.dataset.module = 'notes';
+  notes.innerHTML = `
+    <div class="tile-head">
+      <div class="tile-name">NOTES</div>
+      <div class="tile-head-right"><div class="tile-idx">07</div></div>
+    </div>
+    <textarea id="notesArea" placeholder="Jot something down…" style="width:100%; flex:1; min-height:0; resize:none; background:var(--bg); border:1px solid var(--line); border-radius:2px; color:var(--text); padding:10px 12px; font-family:'Space Grotesk',sans-serif; font-size:13px; line-height:1.5; outline:none;"></textarea>
+    <button class="tile-cta" id="notesClearBtn">Clear</button>
+  `;
+  grid.appendChild(wrapAsGridItem('notes', notes));
 
   // ---- GridStack init: drag, resize, and persisted layout ----
   const gridStack = GridStack.init({
@@ -1815,6 +1872,23 @@
     if(!row) return;
     const p = masteringItems[Number(row.dataset.itemIdx)];
     if(p) openProjectModal(p);
+  });
+
+  // ---- Notes (localStorage only, no backend) ----
+  const notesArea = document.getElementById('notesArea');
+  notesArea.value = localStorage.getItem('quick_notes') || '';
+  let notesSaveTimer = null;
+  notesArea.addEventListener('input', () => {
+    clearTimeout(notesSaveTimer);
+    notesSaveTimer = setTimeout(() => {
+      localStorage.setItem('quick_notes', notesArea.value);
+    }, 400);
+  });
+  document.getElementById('notesClearBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    notesArea.value = '';
+    localStorage.removeItem('quick_notes');
+    notesArea.focus({ preventScroll: true });
   });
 </script>
 
