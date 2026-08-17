@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack.min.css">
 <script src="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack-all.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
   :root{
     --bg: #18181b;
@@ -384,6 +385,12 @@
     z-index:200;
   }
   .chat-panel.open{ transform:translateX(0); }
+  .chat-panel.resizing{ transition:none; }
+  .chat-panel-resize{
+    position:absolute; left:-4px; top:0; bottom:0; width:8px;
+    cursor:ew-resize; z-index:201;
+  }
+  .chat-panel-resize:hover, .chat-panel.resizing .chat-panel-resize{ background:rgba(225,29,72,.25); }
   .chat-panel-head{
     display:flex; align-items:center; justify-content:space-between;
     padding-bottom:14px; border-bottom:1px solid var(--line); flex-shrink:0;
@@ -400,7 +407,37 @@
   .chat-messages::-webkit-scrollbar{ width:6px; }
   .chat-messages::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
   .chat-msg{ max-width:75%; padding:9px 13px; border-radius:3px; font-size:13px; line-height:1.5; white-space:pre-wrap; }
+  .chat-msg.assistant{ max-width:96%; white-space:normal; }
   .chat-msg.user{ align-self:flex-end; background:var(--rose); color:#fff; }
+  .chat-msg.assistant p{ margin:0 0 8px; }
+  .chat-msg.assistant p:last-child{ margin-bottom:0; }
+  .chat-msg.assistant strong{ color:var(--text); font-weight:600; }
+  .chat-msg.assistant ul, .chat-msg.assistant ol{ margin:0 0 8px; padding-left:18px; }
+  .chat-msg.assistant li{ margin-bottom:3px; }
+  .chat-msg.assistant h1, .chat-msg.assistant h2, .chat-msg.assistant h3{
+    font-family:'Bebas Neue', sans-serif; letter-spacing:.03em; color:var(--text);
+    margin:10px 0 6px; font-size:16px;
+  }
+  .chat-msg.assistant h1:first-child, .chat-msg.assistant h2:first-child, .chat-msg.assistant h3:first-child{ margin-top:0; }
+  .chat-msg.assistant code{
+    background:rgba(0,0,0,.3); border-radius:2px; padding:1px 5px;
+    font-family:'JetBrains Mono', monospace; font-size:.9em;
+  }
+  .chat-msg.assistant pre{
+    background:rgba(0,0,0,.3); border-radius:3px; padding:10px; overflow-x:auto; margin:0 0 8px;
+  }
+  .chat-msg.assistant pre code{ background:none; padding:0; }
+  .chat-msg.assistant table{
+    border-collapse:collapse; width:100%; margin:0 0 8px; font-size:12px;
+  }
+  .chat-msg.assistant th, .chat-msg.assistant td{
+    border:1px solid rgba(255,255,255,.15); padding:5px 8px; text-align:left;
+  }
+  .chat-msg.assistant th{ font-family:'JetBrains Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim); }
+  .chat-msg.assistant a{ color:var(--rose-bright); }
+  .chat-msg.assistant blockquote{
+    border-left:2px solid var(--rose); margin:0 0 8px; padding-left:10px; color:var(--text-mid);
+  }
   .chat-msg.assistant{ align-self:flex-start; background:var(--bg); border:1px solid var(--line); color:var(--text); }
   .chat-msg.system{ align-self:center; color:var(--rose-bright); font-family:'JetBrains Mono',monospace; font-size:11px; text-align:center; }
   .chat-input-row{ display:flex; gap:8px; }
@@ -503,6 +540,7 @@
     </header>
 
     <div class="chat-panel" id="chatPanel">
+      <div class="chat-panel-resize" id="chatPanelResize"></div>
       <div class="chat-panel-head">
         <div style="display:flex; align-items:baseline; gap:10px;">
           <div class="tile-name">AI CHAT</div>
@@ -1564,7 +1602,11 @@
     withScrollLock(() => {
       el = document.createElement('div');
       el.className = 'chat-msg ' + role;
-      el.textContent = text;
+      if(role === 'assistant' && window.marked){
+        el.innerHTML = marked.parse(text);
+      } else {
+        el.textContent = text;
+      }
       list.appendChild(el);
       list.scrollTop = list.scrollHeight;
     });
@@ -1653,7 +1695,7 @@
 
     try{
       const reply = await askAI(thinking);
-      thinking.textContent = reply;
+      if(window.marked) thinking.innerHTML = marked.parse(reply); else thinking.textContent = reply;
       chatHistory.push({ role: 'assistant', text: reply });
     }catch(err){
       thinking.remove();
@@ -1690,6 +1732,45 @@
   }
   document.getElementById('chatToggleBtn').addEventListener('click', toggleChatPanel);
   document.getElementById('chatPanelClose').addEventListener('click', toggleChatPanel);
+
+  // ---- chat panel resize (drag the left edge) ----
+  (function setupChatPanelResize(){
+    const panel = document.getElementById('chatPanel');
+    const handle = document.getElementById('chatPanelResize');
+    const MIN_W = 300, MAX_W = 720;
+
+    const savedWidth = parseInt(localStorage.getItem('chat_panel_width'), 10);
+    if(savedWidth && savedWidth >= MIN_W && savedWidth <= MAX_W){
+      panel.style.width = savedWidth + 'px';
+    }
+
+    let dragging = false, startX = 0, startWidth = 0;
+
+    handle.addEventListener('mousedown', (e) => {
+      dragging = true;
+      startX = e.clientX;
+      startWidth = panel.getBoundingClientRect().width;
+      panel.classList.add('resizing');
+      document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if(!dragging) return;
+      const delta = startX - e.clientX; // dragging left = wider (panel anchored right)
+      let newWidth = startWidth + delta;
+      newWidth = Math.max(MIN_W, Math.min(MAX_W, newWidth));
+      panel.style.width = newWidth + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if(!dragging) return;
+      dragging = false;
+      panel.classList.remove('resizing');
+      document.body.style.userSelect = '';
+      localStorage.setItem('chat_panel_width', Math.round(panel.getBoundingClientRect().width));
+    });
+  })();
+
   document.addEventListener('keydown', (e) => {
     if(e.key === 'Escape' && document.getElementById('chatPanel').classList.contains('open')) toggleChatPanel();
   });
@@ -2077,6 +2158,25 @@
     });
   }
 
+  // Rough CHF estimate from straight-line distance between first departure and
+  // last arrival. Real SBB fares use a zone/distance model this open API doesn't
+  // expose — this is a ballpark only, labeled as such, not a bookable price.
+  function estimateFareCHF(connection){
+    const sections = (connection.sections || []).filter(s => s.departure && s.arrival);
+    if(!sections.length) return null;
+    const first = sections[0].departure.station;
+    const last = sections[sections.length - 1].arrival.station;
+    if(!first || !last || !first.coordinate || !last.coordinate) return null;
+    const R = 6371;
+    const toRad = d => d * Math.PI / 180;
+    const dLat = toRad(last.coordinate.x - first.coordinate.x);
+    const dLon = toRad(last.coordinate.y - first.coordinate.y);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(first.coordinate.x)) * Math.cos(toRad(last.coordinate.x)) * Math.sin(dLon/2)**2;
+    const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const fare = 3 + distKm * 0.31; // base fare + rough per-km rate, 2nd class, no discount card
+    return Math.round(fare);
+  }
+
   function renderTransitConnections(connections){
     const body = document.getElementById('transitModalBody');
     body.innerHTML = connections.map((c, i) => {
@@ -2090,6 +2190,7 @@
       }
       const transferCount = c.transfers || 0;
       const transfersStr = transferCount === 0 ? 'Direct' : transferCount + (transferCount === 1 ? ' transfer' : ' transfers');
+      const fare = estimateFareCHF(c);
       const legs = (c.sections || []).filter(s => s.journey || s.walk).map(s => {
         if(s.walk) return `<div class="transit-leg"><div class="transit-leg-dot"></div>Walk${s.walk.duration ? ' · ' + Math.round(s.walk.duration/60) + ' min' : ''}</div>`;
         const line = s.journey ? ((s.journey.category || '') + (s.journey.number || '')) : '';
@@ -2101,11 +2202,14 @@
         <div class="transit-conn" data-conn-idx="${i}">
           <div style="display:flex; justify-content:space-between; align-items:baseline;">
             <div style="font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--text);">${dep} → ${arr}</div>
-            <div style="font-size:11px; color:var(--text-dim);">${durationStr} · ${transfersStr}</div>
+            <div style="text-align:right;">
+              <div style="font-size:11px; color:var(--text-dim);">${durationStr} · ${transfersStr}</div>
+              ${fare ? `<div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--rose-bright);">~CHF ${fare}</div>` : ''}
+            </div>
           </div>
           <div style="margin-top:4px;">${legs}</div>
         </div>`;
-    }).join('');
+    }).join('') + `<div class="tile-hint" style="margin-top:10px; color:var(--text-dim); font-size:10px;">Prices are rough distance-based estimates, not real fares — SBB doesn't expose actual pricing via open data. Check sbb.ch for exact cost.</div>`;
 
     body.querySelectorAll('.transit-conn').forEach(el => {
       el.addEventListener('click', () => showTransitRouteOnMap(connections[Number(el.dataset.connIdx)]));
