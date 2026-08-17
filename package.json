@@ -1,0 +1,8 @@
+{
+  "name": "wav-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "imapflow": "^1.0.164"
+  }
+}
