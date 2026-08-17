@@ -560,8 +560,7 @@
     { name:'UFC.TV',       url:'https://ufc.tv',           slug:'ufc',          color:'D20A0A', short:'UFC' },
     { name:'Kick',         url:'https://kick.com',         slug:'kick',         color:'53FC18', short:'K' },
     { name:'SoundCloud',   url:'https://soundcloud.com',   slug:'soundcloud',   color:'FF5500', short:'SC' },
-    { name:'GitHub',       url:'https://github.com',       slug:'github',       color:'FFFFFF', short:'GH' },
-    { name:'SwissTransfer',url:'https://www.swisstransfer.com', slug:'swisstransfer', color:'CC0000', short:'ST' }
+    { name:'GitHub',       url:'https://github.com',       slug:'github',       color:'FFFFFF', short:'GH' }
   ];
   const quickLinksEl = document.getElementById('quickLinks');
   quickLinksEl.innerHTML = QUICK_LINKS.map(l => `
@@ -677,7 +676,7 @@
   const savedLayoutRaw = localStorage.getItem('dashboard_layout');
   if(savedLayoutRaw){
     try{
-      gridStack.load(JSON.parse(savedLayoutRaw));
+      gridStack.load(JSON.parse(savedLayoutRaw), false);
     }catch(err){ console.warn('layout load failed, using defaults', err); }
   }
 
