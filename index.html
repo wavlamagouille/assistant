@@ -883,10 +883,12 @@
     return { error: lastErr };
   }
 
+  let cityMsgTimer = null;
   async function searchCity(query){
     const msg = document.getElementById('citySearchMsg');
     const btn = document.getElementById('citySearchBtn');
     if(!query) return;
+    clearTimeout(cityMsgTimer);
     msg.style.display = 'block';
     msg.style.color = 'var(--text-dim)';
     msg.textContent = 'Searching for "' + query + '"…';
@@ -906,6 +908,8 @@
         msg.textContent = 'City not found — check spelling.';
       }
       console.error('geocoding produced no usable result for', query, result);
+      clearTimeout(cityMsgTimer);
+      cityMsgTimer = setTimeout(() => { msg.style.display = 'none'; }, 4000);
       return;
     }
 
@@ -1165,6 +1169,8 @@
     cityInput.addEventListener('input', (e) => {
       const q = e.target.value.trim();
       clearTimeout(suggestDebounce);
+      clearTimeout(cityMsgTimer);
+      document.getElementById('citySearchMsg').style.display = 'none';
       if(q.length < 2){
         suggestionsBox.classList.remove('show');
         return;
@@ -1333,21 +1339,31 @@
   }
 
   // ---- stock/ticker search: add any symbol to the tracked list ----
-  async function searchStock(rawSymbol){
+  let stockMsgTimer = null;
+  function showStockMsg(text){
     const msg = document.getElementById('stockSearchMsg');
+    clearTimeout(stockMsgTimer);
+    msg.textContent = text;
+    msg.style.display = 'block';
+    stockMsgTimer = setTimeout(() => { msg.style.display = 'none'; }, 4000);
+  }
+  function hideStockMsg(){
+    clearTimeout(stockMsgTimer);
+    document.getElementById('stockSearchMsg').style.display = 'none';
+  }
+
+  async function searchStock(rawSymbol){
     const btn = document.getElementById('stockSearchBtn');
     const symbol = rawSymbol.trim().toUpperCase();
     if(!symbol) return;
-    msg.style.display = 'none';
+    hideStockMsg();
 
     if(!TWELVE_DATA_KEY){
-      msg.textContent = 'Add a Twelve Data API key first (see note below).';
-      msg.style.display = 'block';
+      showStockMsg('Add a Twelve Data API key first (see note below).');
       return;
     }
     if(STOCKS.some(s => s.symbol.toUpperCase() === symbol)){
-      msg.textContent = symbol + ' is already tracked.';
-      msg.style.display = 'block';
+      showStockMsg(symbol + ' is already tracked.');
       return;
     }
 
@@ -1358,16 +1374,14 @@
       const res = await fetch(`https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbol)}&apikey=${TWELVE_DATA_KEY}`);
       const q = await res.json();
       if(!res.ok || q.status === 'error' || q.close == null){
-        msg.textContent = q.message || (symbol + ' not found.');
-        msg.style.display = 'block';
+        showStockMsg(q.message || (symbol + ' not found.'));
       } else {
         STOCKS.push({ symbol, label: symbol, tv: symbol });
         document.getElementById('stockSearchInput').value = '';
         found = true;
       }
     }catch(err){
-      msg.textContent = 'Search failed: ' + (err && err.message ? err.message : 'unknown error') + '.';
-      msg.style.display = 'block';
+      showStockMsg('Search failed: ' + (err && err.message ? err.message : 'unknown error') + '.');
       console.error('stock search failed', err);
     }
     btn.textContent = 'Add';
@@ -1399,6 +1413,7 @@
     document.getElementById('stockSearchInput').addEventListener('keydown', (e) => {
       if(e.key === 'Enter') searchStock(e.target.value);
     });
+    document.getElementById('stockSearchInput').addEventListener('input', hideStockMsg);
   }
   augmentMarketsTile();
   connectMarkets();
