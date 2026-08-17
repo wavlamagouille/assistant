@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack.min.css">
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack-all.js"></script>
 <style>
   :root{
     --bg: #18181b;
@@ -145,12 +147,27 @@
 
   main{
     padding:28px 32px 32px;
-    display:grid;
-    grid-template-columns:repeat(auto-fit, minmax(230px, 1fr));
-    gap:16px;
   }
-  .chat-tile{ grid-column: 1 / -1; }
-  .tile-wide{ grid-column: 1 / -1; }
+  .grid-stack{ background:transparent; }
+  .grid-stack-item-content{
+    inset:0 !important;
+    overflow:visible !important;
+  }
+  .grid-stack-item .tile{
+    height:100%;
+    margin:0;
+  }
+  /* theme the resize handles to match the dark UI instead of default gray */
+  .grid-stack-item > .ui-resizable-handle{ opacity:0; transition:opacity .15s ease; }
+  .grid-stack-item:hover > .ui-resizable-handle{ opacity:1; }
+  .grid-stack-item > .ui-resizable-se{
+    background: linear-gradient(135deg, transparent 0 40%, var(--rose-bright) 40% 60%, transparent 60% 100%);
+    width:14px; height:14px; right:4px; bottom:4px;
+  }
+  .grid-stack-item.ui-draggable-dragging .tile,
+  .grid-stack-item.ui-resizable-resizing .tile{
+    border-color:var(--rose-bright);
+  }
 
   .leaflet-container{ background:#0f0f11; font-family:'JetBrains Mono', monospace; }
   .leaflet-control-attribution{ background:rgba(24,24,27,.85)!important; color:var(--text-dim)!important; font-size:9px!important; }
@@ -414,7 +431,7 @@
       </div>
     </header>
 
-    <main id="grid">
+    <main id="grid" class="grid-stack">
       <!-- tiles injected by JS -->
     </main>
 
@@ -500,6 +517,33 @@
   ];
 
   const grid = document.getElementById('grid');
+  // Default sizes in a 12-column grid: weather + chat span full width,
+  // the five utility tiles sit 3-per-row. User can drag/resize freely from
+  // here — this is just the starting layout.
+  const DEFAULT_SIZE = {
+    weather: { w:12, h:6 },
+    mail:    { w:4,  h:5 },
+    agenda:  { w:4,  h:5 },
+    markets: { w:4,  h:5 },
+    news:    { w:4,  h:5 },
+    mastering:{ w:4, h:5 },
+    chat:    { w:12, h:6 }
+  };
+
+  function wrapAsGridItem(id, tileEl){
+    const size = DEFAULT_SIZE[id] || { w:4, h:5 };
+    const item = document.createElement('div');
+    item.className = 'grid-stack-item';
+    item.setAttribute('gs-id', id);
+    item.setAttribute('gs-w', size.w);
+    item.setAttribute('gs-h', size.h);
+    const content = document.createElement('div');
+    content.className = 'grid-stack-item-content';
+    content.appendChild(tileEl);
+    item.appendChild(content);
+    return item;
+  }
+
   modules.forEach(m => {
     const tile = document.createElement('div');
     tile.className = 'tile';
@@ -515,11 +559,12 @@
       </div>
       <button class="tile-cta" data-module="${m.id}">Connect</button>
     `;
-    grid.appendChild(tile);
+    grid.appendChild(wrapAsGridItem(m.id, tile));
   });
 
   const chat = document.createElement('div');
   chat.className = 'tile chat-tile';
+  chat.dataset.module = 'chat';
   chat.innerHTML = `
     <div class="chat-left">
       <div class="tile-name">AI CHAT</div>
@@ -527,7 +572,33 @@
     </div>
     <button class="tile-cta" id="chatActivateBtn" data-module="chat">Activate</button>
   `;
-  grid.appendChild(chat);
+  grid.appendChild(wrapAsGridItem('chat', chat));
+
+  // ---- GridStack init: drag, resize, and persisted layout ----
+  const gridStack = GridStack.init({
+    column: 12,
+    cellHeight: 70,
+    margin: 8,
+    float: true,
+    resizable: { handles: 'se' },
+    draggable: { handle: '.tile-head, .chat-left' }
+  }, '#grid');
+
+  function saveLayout(){
+    try{
+      const layout = gridStack.save(false);
+      localStorage.setItem('dashboard_layout', JSON.stringify(layout));
+    }catch(err){ console.warn('layout save failed', err); }
+  }
+
+  const savedLayoutRaw = localStorage.getItem('dashboard_layout');
+  if(savedLayoutRaw){
+    try{
+      gridStack.load(JSON.parse(savedLayoutRaw));
+    }catch(err){ console.warn('layout load failed, using defaults', err); }
+  }
+
+  gridStack.on('change', saveLayout);
 
 
   const connected = new Set();
