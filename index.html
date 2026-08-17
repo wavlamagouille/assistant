@@ -21,11 +21,10 @@
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{
-    height:100%;
+    min-height:100%;
     background:var(--bg);
     color:var(--text);
     font-family:'Space Grotesk', sans-serif;
-    overflow:hidden;
     -webkit-font-smoothing:antialiased;
   }
   ::selection{ background:var(--rose); color:#fff; }
@@ -76,7 +75,7 @@
 
   /* ---------- SHELL ---------- */
   #shell{
-    height:100%;
+    min-height:100%;
     display:flex; flex-direction:column;
     opacity:0;
     transition:opacity .7s ease;
@@ -145,13 +144,10 @@
   }
 
   main{
-    flex:1;
     padding:28px 32px 32px;
     display:grid;
     grid-template-columns:repeat(auto-fit, minmax(230px, 1fr));
     gap:16px;
-    overflow-y:auto;
-    overflow-anchor:none;
   }
   .chat-tile{ grid-column: 1 / -1; }
   .tile-wide{ grid-column: 1 / -1; }
@@ -543,8 +539,6 @@
   // from Flo before they can go live (credentials, a project config, an API key).
   // Clicking Connect tells you exactly what's missing instead of pretending.
   const NEEDS = {
-    mail:      'Needs a Google OAuth setup so the app can read Gmail on your behalf.',
-    agenda:    'Needs the same Google OAuth setup as Email — can share credentials.',
     news:      'Needs an RSS source list or a news API key to pull headlines.',
     mastering: "Needs your Wavaudiolab Firebase project config to read submissions."
   };
@@ -553,7 +547,7 @@
     const btn = e.target.closest('.tile-cta');
     if(!btn) return;
     const mod = btn.dataset.module;
-    if(mod === 'weather' || mod === 'markets' || mod === 'chat') return; // already live
+    if(mod === 'weather' || mod === 'markets' || mod === 'chat' || mod === 'mail' || mod === 'agenda') return; // already live
 
     const tile = btn.closest('.tile');
     const stateEl = tile.querySelector('.tile-state');
@@ -601,14 +595,23 @@
     80:'Light showers', 81:'Showers', 82:'Heavy showers',
     95:'Thunderstorm', 96:'Thunderstorm with hail', 99:'Severe thunderstorm'
   };
+  const SVG_ICONS = {
+    sun: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>',
+    partly: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="7" r="3" fill="#fbbf24"/><path d="M8 1.5v1.6M8 12v0M1.5 7h1.6M3.3 2.3l1.1 1.1M12.7 2.3l-1.1 1.1" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round"/><path d="M7 20h9.5a4 4 0 0 0 .5-7.97A5.5 5.5 0 0 0 6.6 13.3 3.5 3.5 0 0 0 7 20z" fill="#a1a1aa"/></svg>',
+    cloud: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none"><path d="M6 19h11a4 4 0 0 0 .6-7.96 5.5 5.5 0 0 0-10.79 1.38A3.5 3.5 0 0 0 6 19z" fill="#a1a1aa"/></svg>',
+    fog: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="1.8" stroke-linecap="round"><path d="M6 11h11a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.1 1.3A3 3 0 0 0 6 11z" fill="#71717a" stroke="none" opacity=".7"/><path d="M3 15h18M5 19h14"/></svg>',
+    rain: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.8" stroke-linecap="round"><path d="M6 11h11a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.1 1.3A3 3 0 0 0 6 11z" fill="#a1a1aa" stroke="none"/><path d="M8 15l-1.5 3M13 15l-1.5 3M18 15l-1.5 3"/></svg>',
+    snow: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#e4e4e7" stroke-width="1.5" stroke-linecap="round"><path d="M6 11h11a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.1 1.3A3 3 0 0 0 6 11z" fill="#a1a1aa" stroke="none"/><path d="M8 15v4M6 16.5l4 1M10 16.5l-4 1M16 15v4M14 16.5l4 1M18 16.5l-4 1"/></svg>',
+    storm: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none"><path d="M6 11h11a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.1 1.3A3 3 0 0 0 6 11z" fill="#71717a"/><path d="M12 12l-3 5h3l-1 4 4-6h-3l1-3z" fill="#fbbf24"/></svg>'
+  };
   const WMO_ICON = {
-    0:'☀️', 1:'🌤️', 2:'⛅', 3:'☁️',
-    45:'🌫️', 48:'🌫️',
-    51:'🌦️', 53:'🌦️', 55:'🌧️',
-    61:'🌧️', 63:'🌧️', 65:'🌧️',
-    71:'🌨️', 73:'🌨️', 75:'❄️',
-    80:'🌦️', 81:'🌧️', 82:'⛈️',
-    95:'⛈️', 96:'⛈️', 99:'⛈️'
+    0:'sun', 1:'sun', 2:'partly', 3:'cloud',
+    45:'fog', 48:'fog',
+    51:'rain', 53:'rain', 55:'rain',
+    61:'rain', 63:'rain', 65:'rain',
+    71:'snow', 73:'snow', 75:'snow',
+    80:'rain', 81:'rain', 82:'storm',
+    95:'storm', 96:'storm', 99:'storm'
   };
 
   async function connectWeather(){
@@ -625,14 +628,15 @@
       const data = await res.json();
       const cur = data.current;
       const desc = WMO[cur.weather_code] || 'Unknown conditions';
-      const icon = WMO_ICON[cur.weather_code] || '🌡️';
+      const iconKey = WMO_ICON[cur.weather_code] || 'cloud';
+      const iconSvg = SVG_ICONS[iconKey];
       const tmax = Math.round(data.daily.temperature_2m_max[0]);
       const tmin = Math.round(data.daily.temperature_2m_min[0]);
 
       stateEl.textContent = 'Live — ' + LOCATION.name;
       bodyEl.innerHTML = `
         <div style="display:flex; align-items:center; gap:16px;">
-          <span style="font-size:44px; line-height:1;">${icon}</span>
+          <span style="display:inline-flex; width:44px; height:44px; flex-shrink:0;">${iconSvg}</span>
           <div style="display:flex; align-items:baseline; gap:10px;">
             <span style="font-family:'JetBrains Mono',monospace; font-size:34px; color:var(--text);">${Math.round(cur.temperature_2m)}°</span>
             <span style="font-size:13px; color:var(--text-mid);">feels like ${Math.round(cur.apparent_temperature)}°</span>
@@ -1298,8 +1302,9 @@
   // Groq: get a free key at https://console.groq.com/keys (no card needed).
   // Runs stable open-weight models (Llama) that don't get deprecated/overloaded
   // the way Gemini's newest "latest" alias does — chosen as primary for reliability.
-  const GROQ_API_KEY = '';
-  const GROQ_MODEL = 'llama-3.3-70b-versatile';
+  const GROQ_API_KEY = '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';
+  const GROQ_MODELS = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b']; // llama-3.3-70b-versatile was deprecated by Groq in July 2026 — these are the current recommended replacements
+  const GROQ_MODEL = GROQ_MODELS[0]; // shown in the UI label
 
   // Gemini stays as a fallback since a key's already set up — used only if
   // Groq isn't configured or fails.
@@ -1333,12 +1338,12 @@
     return el;
   }
 
-  async function callGroq(){
+  async function callGroq(model){
     const res = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
       body: JSON.stringify({
-        model: GROQ_MODEL,
+        model: model,
         messages: chatHistory.map(m => ({ role: m.role, content: m.text }))
       })
     }, 20000);
@@ -1380,7 +1385,9 @@
 
   async function askAI(thinkingEl){
     const providers = [];
-    if(GROQ_API_KEY) providers.push({ name: GROQ_MODEL + ' (Groq)', call: callGroq });
+    if(GROQ_API_KEY){
+      GROQ_MODELS.forEach(m => providers.push({ name: m + ' (Groq)', call: () => callGroq(m) }));
+    }
     providers.push({ name: GEMINI_MODEL + ' (Gemini)', call: callGemini });
 
     let lastErr;
@@ -1389,9 +1396,10 @@
         return await providers[i].call();
       }catch(err){
         lastErr = err;
+        console.error(providers[i].name + ' failed:', err);
         if(!isRetryable(err) && i === providers.length - 1) throw err;
         if(i < providers.length - 1 && thinkingEl){
-          thinkingEl.textContent = providers[i].name + ' unavailable — trying ' + providers[i+1].name + '…';
+          thinkingEl.textContent = providers[i].name + ' failed: ' + err.message + ' — trying ' + providers[i+1].name + '…';
         }
       }
     }
@@ -1464,6 +1472,220 @@
     e.stopPropagation();
     activateChat();
   });
+
+  // ---- Google login (Gmail + Calendar, read-only, PKCE — no client secret needed) ----
+  // Client ID is safe to keep in frontend code for this flow. Uses the
+  // exact current URL as the redirect target, so it works wherever this
+  // file happens to be hosted, as long as that exact URL is registered
+  // in Google Cloud Console → Credentials → this OAuth client's
+  // Authorized redirect URIs.
+  const GOOGLE_CLIENT_ID = '82698009173-k1umel8li3rd6ghb6e9vgodi0i8vo3n6.apps.googleusercontent.com';
+  const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly';
+  const GOOGLE_REDIRECT_URI = window.location.origin + window.location.pathname;
+
+  function b64url(bytes){
+    return btoa(String.fromCharCode(...new Uint8Array(bytes)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function sha256(str){
+    return await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  }
+
+  function randomVerifier(){
+    const arr = new Uint8Array(32);
+    crypto.getRandomValues(arr);
+    return b64url(arr.buffer);
+  }
+
+  async function connectGoogle(){
+    const verifier = randomVerifier();
+    const challenge = b64url(await sha256(verifier));
+    localStorage.setItem('google_pkce_verifier', verifier);
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: GOOGLE_REDIRECT_URI,
+      response_type: 'code',
+      scope: GOOGLE_SCOPES,
+      access_type: 'offline',
+      prompt: 'consent',
+      code_challenge: challenge,
+      code_challenge_method: 'S256'
+    });
+    window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+  }
+
+  async function exchangeCodeForTokens(code){
+    const verifier = localStorage.getItem('google_pkce_verifier');
+    const res = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        code: code,
+        code_verifier: verifier,
+        grant_type: 'authorization_code',
+        redirect_uri: GOOGLE_REDIRECT_URI
+      })
+    }, 15000);
+    const data = await res.json();
+    if(!res.ok) throw new Error((data && data.error_description) || (data && data.error) || 'Token exchange failed');
+    storeGoogleTokens(data);
+  }
+
+  function storeGoogleTokens(data){
+    const stored = {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token || JSON.parse(localStorage.getItem('google_tokens') || '{}').refresh_token,
+      expires_at: Date.now() + (data.expires_in * 1000)
+    };
+    localStorage.setItem('google_tokens', JSON.stringify(stored));
+  }
+
+  async function refreshGoogleToken(){
+    const stored = JSON.parse(localStorage.getItem('google_tokens') || 'null');
+    if(!stored || !stored.refresh_token) return null;
+    const res = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        refresh_token: stored.refresh_token,
+        grant_type: 'refresh_token'
+      })
+    }, 15000);
+    const data = await res.json();
+    if(!res.ok){
+      localStorage.removeItem('google_tokens'); // refresh token revoked/expired — needs a fresh login
+      throw new Error((data && data.error_description) || 'Refresh failed');
+    }
+    storeGoogleTokens(data);
+    return JSON.parse(localStorage.getItem('google_tokens')).access_token;
+  }
+
+  async function getValidGoogleToken(){
+    const stored = JSON.parse(localStorage.getItem('google_tokens') || 'null');
+    if(!stored) return null;
+    if(Date.now() < stored.expires_at - 60000) return stored.access_token; // still valid, 1min buffer
+    return await refreshGoogleToken();
+  }
+
+  function setTileLive(mod, label){
+    const tile = document.querySelector(`[data-module="${mod}"]`).closest('.tile');
+    const stateEl = tile.querySelector('.tile-state');
+    stateEl.textContent = label;
+    stateEl.classList.remove('off');
+    stateEl.style.color = '';
+    const oldNote = tile.querySelector('.tile-need');
+    if(oldNote) oldNote.remove();
+    return tile.querySelector('.tile-body');
+  }
+
+  async function loadGmail(){
+    const bodyEl = setTileLive('mail', 'Connecting…');
+    try{
+      const token = await getValidGoogleToken();
+      if(!token) throw new Error('Not connected');
+      const headers = { Authorization: 'Bearer ' + token };
+      const listRes = await fetchWithTimeout('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&labelIds=INBOX', { headers });
+      const listData = await listRes.json();
+      if(!listRes.ok) throw new Error((listData.error && listData.error.message) || 'Gmail list failed');
+      const ids = (listData.messages || []).map(m => m.id);
+      const details = await Promise.all(ids.map(async id => {
+        const r = await fetchWithTimeout(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`, { headers });
+        return r.json();
+      }));
+      setTileLive('mail', 'Live — Gmail');
+      if(!details.length){
+        bodyEl.innerHTML = '<div class="tile-hint">Inbox is empty.</div>';
+      } else {
+        bodyEl.innerHTML = details.map(m => {
+          const headersArr = (m.payload && m.payload.headers) || [];
+          const subject = (headersArr.find(h => h.name === 'Subject') || {}).value || '(no subject)';
+          const from = (headersArr.find(h => h.name === 'From') || {}).value || '';
+          const fromName = from.split('<')[0].trim().replace(/"/g, '');
+          return `<div style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
+            <div style="font-size:13px; color:var(--text);">${subject}</div>
+            <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${fromName}</div>
+          </div>`;
+        }).join('');
+      }
+      connected.add('mail'); refreshCount();
+    }catch(err){
+      console.error('gmail load failed', err);
+      setTileLive('mail', 'Connection error');
+      bodyEl.innerHTML = `<div class="tile-hint" style="color:var(--rose-bright);">${err.message}</div>`;
+    }
+  }
+
+  async function loadCalendar(){
+    const bodyEl = setTileLive('agenda', 'Connecting…');
+    try{
+      const token = await getValidGoogleToken();
+      if(!token) throw new Error('Not connected');
+      const params = new URLSearchParams({
+        timeMin: new Date().toISOString(),
+        maxResults: 5,
+        singleEvents: 'true',
+        orderBy: 'startTime'
+      });
+      const res = await fetchWithTimeout('https://www.googleapis.com/calendar/v3/calendars/primary/events?' + params, {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      const data = await res.json();
+      if(!res.ok) throw new Error((data.error && data.error.message) || 'Calendar fetch failed');
+      setTileLive('agenda', 'Live — Google Calendar');
+      const items = data.items || [];
+      if(!items.length){
+        bodyEl.innerHTML = '<div class="tile-hint">No upcoming events.</div>';
+      } else {
+        bodyEl.innerHTML = items.map(ev => {
+          const start = ev.start.dateTime
+            ? new Date(ev.start.dateTime).toLocaleString([], { weekday:'short', hour:'2-digit', minute:'2-digit' })
+            : ev.start.date;
+          return `<div style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
+            <div style="font-size:13px; color:var(--text);">${ev.summary || '(untitled)'}</div>
+            <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${start}</div>
+          </div>`;
+        }).join('');
+      }
+      connected.add('agenda'); refreshCount();
+    }catch(err){
+      console.error('calendar load failed', err);
+      setTileLive('agenda', 'Connection error');
+      bodyEl.innerHTML = `<div class="tile-hint" style="color:var(--rose-bright);">${err.message}</div>`;
+    }
+  }
+
+  function wireGoogleConnectButtons(){
+    ['mail', 'agenda'].forEach(mod => {
+      const btn = document.querySelector(`button[data-module="${mod}"]`);
+      if(btn) btn.addEventListener('click', (e) => { e.stopPropagation(); connectGoogle(); });
+    });
+  }
+  wireGoogleConnectButtons();
+
+  // On load: handle the OAuth redirect back from Google, if present, then
+  // load Gmail/Calendar from any already-stored (and still-valid-or-refreshable) tokens.
+  (async function initGoogle(){
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if(code){
+      history.replaceState({}, '', window.location.pathname); // strip ?code= from the URL
+      try{
+        await exchangeCodeForTokens(code);
+      }catch(err){
+        console.error('google token exchange failed', err);
+        setTileLive('mail', 'Connection error');
+        alert('Google sign-in failed: ' + err.message);
+        return;
+      }
+    }
+    if(localStorage.getItem('google_tokens')){
+      loadGmail();
+      loadCalendar();
+    }
+  })();
 </script>
 
 </body>
