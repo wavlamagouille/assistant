@@ -503,6 +503,7 @@
   modules.forEach(m => {
     const tile = document.createElement('div');
     tile.className = 'tile';
+    tile.dataset.module = m.id;
     tile.innerHTML = `
       <div class="tile-head">
         <div class="tile-name">${m.name}</div>
