@@ -673,12 +673,12 @@
     { name:'Kick',         url:'https://kick.com',         slug:'kick',         color:'53FC18', short:'K' },
     { name:'SoundCloud',   url:'https://soundcloud.com',   slug:'soundcloud',   color:'FF5500', short:'SC' },
     { name:'GitHub',       url:'https://github.com',       slug:'github',       color:'FFFFFF', short:'GH' },
-    { name:'SwissTransfer',url:'https://www.swisstransfer.com', slug:'swisstransfer', color:'CC0000', short:'ST' }
+    { name:'SwissTransfer',url:'https://www.swisstransfer.com', slug:'swisstransfer', color:'CC0000', short:'ST', img:'/assets/swisstransfer.png' }
   ];
   const quickLinksEl = document.getElementById('quickLinks');
   quickLinksEl.innerHTML = QUICK_LINKS.map(l => `
     <a href="${l.url}" target="_blank" rel="noopener" class="quick-link" title="${l.name}">
-      <img src="https://cdn.simpleicons.org/${l.slug}/${l.color}" alt="${l.name}"
+      <img src="${l.img || ('https://cdn.simpleicons.org/' + l.slug + '/' + l.color)}" alt="${l.name}"
            onerror="this.parentElement.classList.add('fallback')">
       <span class="quick-link-fallback">${l.short}</span>
     </a>
