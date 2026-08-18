@@ -33,6 +33,16 @@
   }
   ::selection{ background:var(--rose); color:#fff; }
 
+  body::before{
+    content:'';
+    position:fixed; inset:0;
+    z-index:9999;
+    pointer-events:none;
+    opacity:.035;
+    mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
   /* ---------- BOOT ---------- */
   #boot{
     position:fixed; inset:0;
@@ -323,26 +333,59 @@
 
   .tile{
     position:relative;
-    background:var(--bg-raised);
+    background:linear-gradient(160deg, #1f1f24 0%, #19191d 100%);
     border:1px solid var(--line);
-    border-radius:3px;
+    border-radius:4px;
     padding:20px 22px;
     display:flex; flex-direction:column;
     gap:14px;
     min-height:150px;
-    transition:border-color .2s ease;
+    box-shadow:0 3px 14px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.03);
+    transition:border-color .25s ease, box-shadow .25s ease, transform .25s ease;
   }
-  .tile:hover{ border-color:#3f3f46; }
+  .tile:hover{
+    border-color:#3f3f46;
+    box-shadow:0 10px 32px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.05);
+    transform:translateY(-2px);
+  }
+  .tile.flash{ animation:tileFlash 1s ease; }
+  @keyframes tileFlash{
+    0%{ box-shadow:0 3px 14px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.03), 0 0 0 1px var(--module-accent, var(--rose-bright)); }
+    100%{ box-shadow:0 3px 14px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.03), 0 0 0 0 transparent; }
+  }
   .tile::before{
     content:'';
     position:absolute; left:0; top:0; bottom:0;
     width:3px;
-    border-radius:3px 0 0 3px;
-    background:var(--line);
-    transition:background .2s ease;
+    border-radius:4px 0 0 4px;
+    background:var(--module-accent, var(--rose-bright));
+    opacity:.45;
+    transition:opacity .25s ease, box-shadow .25s ease;
   }
-  .tile:hover::before{ background:var(--rose-bright); }
+  .tile:hover::before{ opacity:1; box-shadow:0 0 12px var(--module-accent, var(--rose-bright)); }
 
+  /* per-module accent colors, replacing the single universal rose everywhere */
+  .tile[data-module="weather"]   { --module-accent:#fbbf24; }
+  .tile[data-module="mail"]      { --module-accent:#60a5fa; }
+  .tile[data-module="agenda"]    { --module-accent:#a78bfa; }
+  .tile[data-module="markets"]   { --module-accent:#4ade80; }
+  .tile[data-module="news"]      { --module-accent:#22d3ee; }
+  .tile[data-module="mastering"] { --module-accent:#e11d48; }
+  .tile[data-module="transit"]   { --module-accent:#fb923c; }
+  .tile[data-module="currency"]  { --module-accent:#2dd4bf; }
+  .tile[data-module="timer"]     { --module-accent:#f472b6; }
+  .tile[data-module="qr"]        { --module-accent:#a3e635; }
+  .tile[data-module="taptempo"]  { --module-accent:#38bdf8; }
+  .tile[data-module="analyzer"]  { --module-accent:#e879f9; }
+  .tile[data-module="tasks"]     { --module-accent:#facc15; }
+  .tile[data-module="chat"]      { --module-accent:#e11d48; }
+
+  /* staggered entrance animation on load */
+  @keyframes tileEnter{
+    from{ opacity:0; transform:translateY(16px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  .grid-stack-item{ animation:tileEnter .5s cubic-bezier(.16,1,.3,1) backwards; }
   .tile-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .tile-head .tile-head-right{ display:flex; align-items:center; gap:8px; }
   .icon-refresh-btn{
@@ -353,9 +396,10 @@
     cursor:pointer;
     border-radius:50%;
     padding:0;
-    transition:color .15s ease, background .15s ease;
+    transition:color .15s ease, background .15s ease, transform .1s ease;
   }
   .icon-refresh-btn:hover{ color:var(--rose-bright); background:rgba(225,29,72,.12); }
+  .icon-refresh-btn:active{ transform:scale(.88); }
   .icon-refresh-btn svg{ transition:transform .5s ease; }
   .icon-refresh-btn.spinning svg{ transform:rotate(360deg); }
   .tile-name{
@@ -407,9 +451,10 @@
     padding:7px 12px;
     border-radius:2px;
     cursor:pointer;
-    transition:background .15s ease, color .15s ease;
+    transition:background .15s ease, color .15s ease, transform .1s ease;
   }
   .tile-cta:hover{ background:var(--rose-bright); color:#18181b; border-color:var(--rose-bright); }
+  .tile-cta:active{ transform:scale(.94); }
 
   .chat-toggle-btn{
     display:inline-flex; align-items:center; justify-content:center;
@@ -418,11 +463,12 @@
     color:var(--text-mid);
     cursor:pointer;
     border-radius:3px;
-    transition:color .15s ease, border-color .15s ease, background .15s ease;
+    transition:color .15s ease, border-color .15s ease, background .15s ease, transform .1s ease;
   }
   .chat-toggle-btn:hover, .chat-toggle-btn.active{
     color:var(--rose-bright); border-color:var(--rose-bright); background:rgba(225,29,72,.1);
   }
+  .chat-toggle-btn:active{ transform:scale(.88); }
 
   .chat-panel{
     position:fixed; top:0; right:0; height:100%; width:400px; max-width:92vw;
@@ -778,6 +824,7 @@
     analyzer:{ w:9,  h:12 }
   };
 
+  let tileEnterCount = 0;
   function wrapAsGridItem(id, tileEl){
     const size = DEFAULT_SIZE[id] || { w:4, h:5 };
     const item = document.createElement('div');
@@ -785,6 +832,8 @@
     item.setAttribute('gs-id', id);
     item.setAttribute('gs-w', size.w);
     item.setAttribute('gs-h', size.h);
+    item.style.animationDelay = (tileEnterCount * 0.05) + 's';
+    tileEnterCount++;
     const content = document.createElement('div');
     content.className = 'grid-stack-item-content';
     content.appendChild(tileEl);
@@ -1084,6 +1133,7 @@
       const sunset = data.daily.sunset ? new Date(data.daily.sunset[0]).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : null;
 
       stateEl.textContent = 'Live — ' + LOCATION.name;
+      flashTile('weather');
       bodyEl.innerHTML = `
         <div style="display:flex; align-items:center; gap:16px;">
           <span style="display:inline-flex; width:44px; height:44px; flex-shrink:0;">${iconSvg}</span>
@@ -1644,7 +1694,7 @@
     btn.style.display = 'none';
     addRefreshIcon('markets', connectMarkets);
 
-    if(ok){ connected.add('markets'); refreshCount(); }
+    if(ok){ connected.add('markets'); refreshCount(); flashTile('markets'); }
   }
 
   // ---- stock/ticker search: add any symbol to the tracked list ----
@@ -2126,6 +2176,14 @@
     }
   }
 
+  function flashTile(mod){
+    const tile = document.querySelector(`[data-module="${mod}"]`).closest('.tile');
+    if(!tile) return;
+    tile.classList.remove('flash');
+    void tile.offsetWidth; // force reflow so the animation can restart if triggered again quickly
+    tile.classList.add('flash');
+  }
+
   function setTileLive(mod, label){
     const tile = document.querySelector(`[data-module="${mod}"]`).closest('.tile');
     const stateEl = tile.querySelector('.tile-state');
@@ -2134,6 +2192,7 @@
     stateEl.style.color = '';
     const oldNote = tile.querySelector('.tile-need');
     if(oldNote) oldNote.remove();
+    if(label && label.indexOf('Live') === 0) flashTile(mod);
     return tile.querySelector('.tile-body');
   }
 
