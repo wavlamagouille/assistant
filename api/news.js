@@ -24,7 +24,7 @@ export default async function handler(req, res) {
   items.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   res.status(200).json({
-    items: items.slice(0, 10),
+    items: items.slice(0, 40),
     failedSources: failed
   });
 }
