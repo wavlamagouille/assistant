@@ -775,7 +775,7 @@
     timer:   { w:4,  h:4 },
     qr:      { w:4,  h:5 },
     taptempo:{ w:4,  h:4 },
-    analyzer:{ w:8,  h:8 }
+    analyzer:{ w:9,  h:10 }
   };
 
   function wrapAsGridItem(id, tileEl){
@@ -921,9 +921,10 @@
     <button class="tile-cta" id="analyzerToggleBtn" style="margin-bottom:10px;">Start</button>
     <div style="width:100%; display:flex; flex-direction:column; gap:10px; flex:1; min-height:0;">
       <canvas id="analyzerSpectrum" style="width:100%; height:120px; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
-      <div style="display:flex; gap:10px; height:100px;">
-        <canvas id="analyzerMeters" style="flex:1; height:100%; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
-        <canvas id="analyzerCorrelation" style="width:120px; height:100%; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
+      <div style="display:flex; gap:10px; flex:1; min-height:220px;">
+        <canvas id="analyzerMeters" style="width:70px; height:100%; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
+        <canvas id="analyzerGonio" style="flex:1; height:100%; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
+        <canvas id="analyzerCorrelation" style="width:100px; height:100%; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
       </div>
     </div>
   `;
@@ -2968,6 +2969,60 @@
     });
   }
 
+  function drawGonio(){
+    const canvas = document.getElementById('analyzerGonio');
+    const ctx2d = canvas.getContext('2d');
+    const w = canvas.width = canvas.clientWidth;
+    const h = canvas.height = canvas.clientHeight;
+    if(!analyzerL || !analyzerR){
+      ctx2d.clearRect(0, 0, w, h);
+      return;
+    }
+
+    // Fade the previous frame instead of clearing it, for a phosphor-persistence
+    // trail effect like real hardware goniometers/vectorscopes have.
+    ctx2d.fillStyle = 'rgba(15,15,17,0.22)';
+    ctx2d.fillRect(0, 0, w, h);
+
+    const cx = w / 2, cy = h / 2;
+    const scale = Math.min(w, h) / 2 * 0.85;
+
+    // Reference lines: vertical = mono (L=R), diagonals = hard-left/hard-right only.
+    ctx2d.strokeStyle = 'rgba(255,255,255,.08)';
+    ctx2d.lineWidth = 1;
+    ctx2d.beginPath();
+    ctx2d.moveTo(cx, cy - scale); ctx2d.lineTo(cx, cy + scale);
+    ctx2d.moveTo(cx - scale, cy); ctx2d.lineTo(cx + scale, cy);
+    ctx2d.stroke();
+    ctx2d.strokeStyle = 'rgba(255,255,255,.04)';
+    ctx2d.beginPath();
+    ctx2d.moveTo(cx - scale*0.7, cy - scale*0.7); ctx2d.lineTo(cx + scale*0.7, cy + scale*0.7);
+    ctx2d.moveTo(cx + scale*0.7, cy - scale*0.7); ctx2d.lineTo(cx - scale*0.7, cy + scale*0.7);
+    ctx2d.stroke();
+
+    const bufL = new Float32Array(analyzerL.fftSize);
+    const bufR = new Float32Array(analyzerR.fftSize);
+    analyzerL.getFloatTimeDomainData(bufL);
+    analyzerR.getFloatTimeDomainData(bufR);
+
+    // Classic 45°-rotated Mid/Side plot: mono signal draws a vertical line,
+    // full stereo width spreads horizontally — same convention as Ozone
+    // Imager / MiniMeters' goniometer.
+    ctx2d.fillStyle = 'rgba(225,29,72,.55)';
+    const step = 4; // subsample for performance, plenty dense for a scope
+    for(let i = 0; i < bufL.length; i += step){
+      const l = bufL[i], r = bufR[i];
+      const x = cx + (r - l) * scale * 0.7;
+      const y = cy - (r + l) * scale * 0.7;
+      ctx2d.fillRect(x, y, 1.5, 1.5);
+    }
+
+    ctx2d.fillStyle = 'var(--text-dim)';
+    ctx2d.font = "8px 'JetBrains Mono', monospace";
+    ctx2d.fillText('M', cx - 3, 12);
+    ctx2d.fillText('S', w - 12, cy + 3);
+  }
+
   function drawCorrelation(){
     const canvas = document.getElementById('analyzerCorrelation');
     const ctx2d = canvas.getContext('2d');
@@ -3015,6 +3070,7 @@
   function analyzerLoop(){
     drawSpectrum();
     drawMeters();
+    drawGonio();
     drawCorrelation();
     analyzerAnimFrame = requestAnimationFrame(analyzerLoop);
   }
@@ -3062,7 +3118,7 @@
     analyzerCtx = null;
     analyzerL = null; analyzerR = null;
     document.getElementById('analyzerToggleBtn').textContent = 'Start';
-    ['analyzerSpectrum', 'analyzerMeters', 'analyzerCorrelation'].forEach(id => {
+    ['analyzerSpectrum', 'analyzerMeters', 'analyzerGonio', 'analyzerCorrelation'].forEach(id => {
       const c = document.getElementById(id);
       const ctx2d = c.getContext('2d');
       ctx2d.clearRect(0, 0, c.width, c.height);
