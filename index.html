@@ -142,6 +142,12 @@
   .quick-link.fallback .quick-link-fallback{ display:flex; }
   @media (max-width: 900px){ .quick-links{ display:none; } }
 
+  .tz-clocks{ display:flex; align-items:center; gap:16px; padding-right:16px; border-right:1px solid var(--line); }
+  .tz-clock{ text-align:right; font-family:'JetBrains Mono', monospace; line-height:1.3; }
+  .tz-clock .tz-time{ font-size:13px; color:var(--text-mid); }
+  .tz-clock .tz-label{ font-size:9px; color:var(--text-dim); letter-spacing:.08em; text-transform:uppercase; }
+  @media (max-width: 900px){ .tz-clocks{ display:none; } }
+
   .clock{
     font-family:'JetBrains Mono', monospace;
     text-align:right;
@@ -295,6 +301,13 @@
   }
   .transit-mode-btn:hover{ color:var(--text); }
   .transit-mode-btn.active{ color:var(--rose-bright); border-color:var(--rose-bright); background:rgba(225,29,72,.1); }
+  .timer-preset-btn{
+    background:var(--bg); border:1px solid var(--line); color:var(--text-dim);
+    padding:6px 10px; font-size:11px; border-radius:2px; cursor:pointer;
+    transition:color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .timer-preset-btn:hover{ color:var(--text); }
+  .timer-preset-btn.active{ color:var(--rose-bright); border-color:var(--rose-bright); background:rgba(225,29,72,.1); }
   .precip-outlook{ display:flex; align-items:flex-end; gap:3px; height:56px; }
   .precip-bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:3px; }
   .precip-bar{ width:100%; max-width:14px; background:var(--rose-bright); opacity:.75; border-radius:1px 1px 0 0; min-height:2px; }
@@ -566,6 +579,7 @@
       <div class="quick-links" id="quickLinks"></div>
       <div class="status">
         <div class="live"><div class="dot"></div><div class="txt">Online</div></div>
+        <div class="tz-clocks" id="tzClocks"></div>
         <div class="clock">
           <div class="time" id="time">--:--:--</div>
           <div class="date" id="date">-- --- ----</div>
@@ -691,6 +705,26 @@
   }
   tick(); setInterval(tick, 1000);
 
+  // ---- timezone clocks (crypto trading session references) ----
+  const TZ_CLOCKS = [
+    { label: 'New York', tz: 'America/New_York' },
+    { label: 'Tokyo', tz: 'Asia/Tokyo' }
+  ];
+  const tzClocksEl = document.getElementById('tzClocks');
+  tzClocksEl.innerHTML = TZ_CLOCKS.map((z, i) => `
+    <div class="tz-clock">
+      <div class="tz-time" id="tzTime${i}">--:--</div>
+      <div class="tz-label">${z.label}</div>
+    </div>
+  `).join('');
+  function tickTz(){
+    TZ_CLOCKS.forEach((z, i) => {
+      const el = document.getElementById('tzTime' + i);
+      if(el) el.textContent = new Date().toLocaleTimeString('en-GB', { timeZone: z.tz, hour:'2-digit', minute:'2-digit' });
+    });
+  }
+  tickTz(); setInterval(tickTz, 1000);
+
   // ---- quick links (Simple Icons CDN - free, accurate brand icons, CC0) ----
   const QUICK_LINKS = [
     { name:'YouTube',      url:'https://youtube.com',      slug:'youtube',      color:'FF0000', short:'YT' },
@@ -735,7 +769,9 @@
     news:    { w:4,  h:5 },
     mastering:{ w:4, h:5 },
     tasks:   { w:4,  h:5 },
-    transit: { w:6,  h:5 }
+    transit: { w:6,  h:5 },
+    currency:{ w:4,  h:4 },
+    timer:   { w:4,  h:4 }
   };
 
   function wrapAsGridItem(id, tileEl){
@@ -788,6 +824,51 @@
     <div id="taskList" class="tile-body" style="gap:0;"></div>
   `;
   grid.appendChild(wrapAsGridItem('tasks', tasks));
+
+  const currencyTile = document.createElement('div');
+  currencyTile.className = 'tile';
+  currencyTile.dataset.module = 'currency';
+  currencyTile.innerHTML = `
+    <div class="tile-head">
+      <div class="tile-name">CURRENCY</div>
+      <div class="tile-head-right"><div class="tile-idx">09</div></div>
+    </div>
+    <div style="width:100%; display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; gap:8px;">
+        <input id="currencyAmount" type="number" class="transit-input" value="100" style="flex:1; min-width:0;">
+        <select id="currencyFrom" class="transit-input" style="width:80px;"></select>
+        <span style="align-self:center; color:var(--text-dim);">→</span>
+        <select id="currencyTo" class="transit-input" style="width:80px;"></select>
+      </div>
+      <div id="currencyResult" style="font-family:'JetBrains Mono',monospace; font-size:28px; color:var(--text);">—</div>
+      <div id="currencyMeta" class="tile-hint" style="color:var(--text-dim);"></div>
+    </div>
+  `;
+  grid.appendChild(wrapAsGridItem('currency', currencyTile));
+
+  const timerTile = document.createElement('div');
+  timerTile.className = 'tile';
+  timerTile.dataset.module = 'timer';
+  timerTile.innerHTML = `
+    <div class="tile-head">
+      <div class="tile-name">TIMER</div>
+      <div class="tile-head-right"><div class="tile-idx">10</div></div>
+    </div>
+    <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:14px; flex:1; justify-content:center;">
+      <div id="timerDisplay" style="font-family:'JetBrains Mono',monospace; font-size:44px; color:var(--text);">25:00</div>
+      <div id="timerPresets" style="display:flex; gap:6px;">
+        <button class="tile-cta timer-preset-btn" data-mins="5" style="margin-top:0;">5m</button>
+        <button class="tile-cta timer-preset-btn" data-mins="15" style="margin-top:0;">15m</button>
+        <button class="tile-cta timer-preset-btn active" data-mins="25" style="margin-top:0;">25m</button>
+        <button class="tile-cta timer-preset-btn" data-mins="45" style="margin-top:0;">45m</button>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="tile-cta" id="timerStartBtn" style="margin-top:0;">Start</button>
+        <button class="tile-cta" id="timerResetBtn" style="margin-top:0;">Reset</button>
+      </div>
+    </div>
+  `;
+  grid.appendChild(wrapAsGridItem('timer', timerTile));
 
   // ---- GridStack init: drag, resize, and persisted layout ----
   const gridStack = GridStack.init({
@@ -928,7 +1009,7 @@
     stateEl.textContent = 'Connecting…';
     stateEl.classList.remove('off');
     try{
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${LOCATION.lat}&longitude=${LOCATION.lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${LOCATION.lat}&longitude=${LOCATION.lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=auto`;
       const res = await fetchWithTimeout(url);
       if(!res.ok) throw new Error('HTTP '+res.status);
       const data = await res.json();
@@ -938,6 +1019,8 @@
       const iconSvg = SVG_ICONS[iconKey];
       const tmax = Math.round(data.daily.temperature_2m_max[0]);
       const tmin = Math.round(data.daily.temperature_2m_min[0]);
+      const sunrise = data.daily.sunrise ? new Date(data.daily.sunrise[0]).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : null;
+      const sunset = data.daily.sunset ? new Date(data.daily.sunset[0]).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : null;
 
       stateEl.textContent = 'Live — ' + LOCATION.name;
       bodyEl.innerHTML = `
@@ -950,6 +1033,7 @@
         </div>
         <div class="tile-hint">${desc} · wind ${Math.round(cur.wind_speed_10m)} km/h</div>
         <div class="tile-hint" style="color:var(--text-dim);">day ${tmax}° / night ${tmin}°</div>
+        ${sunrise && sunset ? `<div class="tile-hint" style="color:var(--text-dim); font-family:'JetBrains Mono',monospace;">☀ ${sunrise} · ☾ ${sunset}</div>` : ''}
       `;
       btn.style.display = 'none';
       addRefreshIcon('weather', connectWeather);
@@ -2587,6 +2671,111 @@
   });
 
   augmentTransitTile();
+
+  // ---- Currency converter (Frankfurter, ECB rates, no key needed) ----
+  const CURRENCIES = ['USD', 'EUR', 'CHF', 'GBP', 'JPY', 'CNY', 'CAD', 'AUD'];
+  const fromSelect = document.getElementById('currencyFrom');
+  const toSelect = document.getElementById('currencyTo');
+  fromSelect.innerHTML = CURRENCIES.map(c => `<option value="${c}">${c}</option>`).join('');
+  toSelect.innerHTML = CURRENCIES.map(c => `<option value="${c}">${c}</option>`).join('');
+  fromSelect.value = 'CHF';
+  toSelect.value = 'EUR';
+
+  let currencyDebounce = null;
+  async function convertCurrency(){
+    const amount = parseFloat(document.getElementById('currencyAmount').value) || 0;
+    const from = fromSelect.value;
+    const to = toSelect.value;
+    const resultEl = document.getElementById('currencyResult');
+    const metaEl = document.getElementById('currencyMeta');
+    if(from === to){
+      resultEl.textContent = amount.toLocaleString('en-US', { maximumFractionDigits:2 }) + ' ' + to;
+      metaEl.textContent = 'Same currency';
+      return;
+    }
+    try{
+      const res = await fetchWithTimeout(`https://api.frankfurter.app/latest?amount=${amount}&from=${from}&to=${to}`, null, 6000);
+      const data = await res.json();
+      if(!res.ok || !data.rates || data.rates[to] == null) throw new Error('Conversion failed');
+      resultEl.textContent = data.rates[to].toLocaleString('en-US', { maximumFractionDigits:2 }) + ' ' + to;
+      metaEl.textContent = 'ECB reference rate · ' + (data.date || '');
+      connected.add('currency'); refreshCount();
+    }catch(err){
+      console.error('currency conversion failed', err);
+      resultEl.textContent = '—';
+      metaEl.textContent = 'Conversion failed.';
+    }
+  }
+  ['currencyAmount'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+      clearTimeout(currencyDebounce);
+      currencyDebounce = setTimeout(convertCurrency, 400);
+    });
+  });
+  fromSelect.addEventListener('change', convertCurrency);
+  toSelect.addEventListener('change', convertCurrency);
+  convertCurrency();
+
+  // ---- Timer (pure client-side, no API) ----
+  let timerTotalSeconds = 25 * 60;
+  let timerRemaining = timerTotalSeconds;
+  let timerInterval = null;
+  let timerRunning = false;
+
+  function formatTimer(secs){
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+  function updateTimerDisplay(){
+    document.getElementById('timerDisplay').textContent = formatTimer(Math.max(0, timerRemaining));
+  }
+  updateTimerDisplay();
+
+  document.querySelectorAll('.timer-preset-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(timerRunning) return;
+      document.querySelectorAll('.timer-preset-btn').forEach(b => b.classList.toggle('active', b === btn));
+      timerTotalSeconds = parseInt(btn.dataset.mins, 10) * 60;
+      timerRemaining = timerTotalSeconds;
+      updateTimerDisplay();
+    });
+  });
+
+  document.getElementById('timerStartBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const btn = document.getElementById('timerStartBtn');
+    if(timerRunning){
+      clearInterval(timerInterval);
+      timerRunning = false;
+      btn.textContent = 'Start';
+      return;
+    }
+    timerRunning = true;
+    btn.textContent = 'Pause';
+    timerInterval = setInterval(() => {
+      timerRemaining--;
+      updateTimerDisplay();
+      if(timerRemaining <= 0){
+        clearInterval(timerInterval);
+        timerRunning = false;
+        btn.textContent = 'Start';
+        document.getElementById('timerDisplay').style.color = 'var(--rose-bright)';
+        setTimeout(() => { document.getElementById('timerDisplay').style.color = ''; }, 3000);
+      }
+    }, 1000);
+  });
+
+  document.getElementById('timerResetBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearInterval(timerInterval);
+    timerRunning = false;
+    document.getElementById('timerStartBtn').textContent = 'Start';
+    timerRemaining = timerTotalSeconds;
+    document.getElementById('timerDisplay').style.color = '';
+    updateTimerDisplay();
+  });
 </script>
 
 </body>
