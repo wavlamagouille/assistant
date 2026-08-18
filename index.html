@@ -2063,7 +2063,6 @@
         <div class="transit-mode-toggle" id="transitModeToggle">
           <button class="transit-mode-btn active" data-mode="transit">Transit</button>
           <button class="transit-mode-btn" data-mode="flights">Flights</button>
-          <button class="transit-mode-btn" data-mode="uber">Uber</button>
         </div>
         <div id="transitTripTypeRow" class="transit-mode-toggle" style="display:none;">
           <button class="transit-mode-btn active" data-triptype="oneway">One-way</button>
@@ -2117,13 +2116,6 @@
           searchBtn.textContent = 'Search on Google Flights';
           tripTypeRow.style.display = 'flex';
           returnDateInput.style.display = tripType === 'roundtrip' ? 'block' : 'none';
-        } else if(transitMode === 'uber'){
-          dtRow.style.display = 'none';
-          fromInput.placeholder = 'Pickup address…';
-          toInput.placeholder = 'Drop-off address…';
-          searchBtn.textContent = 'Open in Uber';
-          tripTypeRow.style.display = 'none';
-          returnDateInput.style.display = 'none';
         }
       });
     });
@@ -2209,16 +2201,6 @@
           q += ' one way';
         }
         window.open('https://www.google.com/travel/flights?q=' + encodeURIComponent(q), '_blank', 'noopener');
-        return;
-      }
-
-      if(transitMode === 'uber'){
-        const params = new URLSearchParams({
-          action: 'setPickup',
-          'pickup[formatted_address]': from,
-          'dropoff[formatted_address]': to
-        });
-        window.open('https://m.uber.com/ul/?' + params.toString(), '_blank', 'noopener');
         return;
       }
 
