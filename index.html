@@ -1949,6 +1949,31 @@
   loadCalendar();
 
   // ---- News (RSS, no key needed at all) ----
+  const NEWS_PAGE_SIZE = 8;
+  let newsItems = [];
+  let newsShownCount = 0;
+
+  function renderNewsItem(it){
+    return `
+      <a href="${it.link || '#'}" target="_blank" rel="noopener" style="width:100%; display:block; padding:6px 0; border-bottom:1px solid var(--line); text-decoration:none;">
+        <div style="font-size:13px; color:var(--text);">${it.title}</div>
+        <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${it.source}</div>
+      </a>`;
+  }
+
+  function renderMoreNews(){
+    const bodyEl = document.querySelector('[data-module="news"] .tile-body');
+    if(!bodyEl) return;
+    const nextBatch = newsItems.slice(newsShownCount, newsShownCount + NEWS_PAGE_SIZE);
+    if(!nextBatch.length) return;
+    const loadingEl = bodyEl.querySelector('#newsLoadingMore');
+    const html = nextBatch.map(renderNewsItem).join('');
+    if(loadingEl) loadingEl.insertAdjacentHTML('beforebegin', html);
+    else bodyEl.insertAdjacentHTML('beforeend', html);
+    newsShownCount += nextBatch.length;
+    if(loadingEl && newsShownCount >= newsItems.length) loadingEl.remove();
+  }
+
   async function loadNews(){
     const bodyEl = setTileLive('news', 'Connecting…');
     try{
@@ -1959,15 +1984,15 @@
         ? 'Live — some sources down (' + data.failedSources.join(', ') + ')'
         : 'Live — RSS';
       setTileLive('news', label);
-      const items = data.items || [];
-      if(!items.length){
+      newsItems = data.items || [];
+      newsShownCount = 0;
+      if(!newsItems.length){
         bodyEl.innerHTML = '<div class="tile-hint">No headlines available.</div>';
       } else {
-        bodyEl.innerHTML = items.map(it => `
-          <a href="${it.link || '#'}" target="_blank" rel="noopener" style="width:100%; display:block; padding:6px 0; border-bottom:1px solid var(--line); text-decoration:none;">
-            <div style="font-size:13px; color:var(--text);">${it.title}</div>
-            <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${it.source}</div>
-          </a>`).join('');
+        bodyEl.innerHTML = newsItems.length > NEWS_PAGE_SIZE
+          ? '<div id="newsLoadingMore" class="tile-hint" style="color:var(--text-dim); text-align:center; padding:8px 0;">Scroll for more…</div>'
+          : '';
+        renderMoreNews();
       }
       connected.add('news'); refreshCount();
     }catch(err){
@@ -1976,6 +2001,16 @@
       bodyEl.innerHTML = `<div class="tile-hint" style="color:var(--rose-bright);">${err.message}</div>`;
     }
   }
+
+  // Load the next batch when scrolled near the bottom of the News tile body.
+  document.addEventListener('scroll', (e) => {
+    const el = e.target;
+    if(!el || !el.classList || !el.classList.contains('tile-body')) return;
+    if(!el.closest('[data-module="news"]')) return;
+    if(el.scrollTop + el.clientHeight >= el.scrollHeight - 40){
+      renderMoreNews();
+    }
+  }, true);
 
   const newsBtn = document.querySelector('button[data-module="news"]');
   if(newsBtn) newsBtn.style.display = 'none';
