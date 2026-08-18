@@ -487,6 +487,14 @@
     to{ opacity:1; transform:translateY(0); }
   }
 
+  .qr-result-wrap{
+    max-height:0;
+    overflow:hidden;
+    opacity:0;
+    transition:max-height .3s ease, opacity .3s ease .05s;
+  }
+  .qr-result-wrap.open{ max-height:260px; opacity:1; }
+
   .chat-panel{
     position:fixed; top:0; right:0; height:100%; width:400px; max-width:92vw;
     background:var(--bg-raised); border-left:1px solid var(--line);
@@ -657,10 +665,10 @@
           </button>
           <div class="qr-popover" id="qrPopover">
             <input id="qrInput" type="text" class="transit-input" placeholder="Paste a link or text…" style="width:100%; box-sizing:border-box;">
-            <div id="qrCanvasWrap" style="background:#fff; padding:12px; border-radius:3px; display:flex; align-items:center; justify-content:center; min-height:170px; width:170px; margin:10px auto 0;">
-              <span class="tile-hint" style="color:#999;">Type something above</span>
+            <div id="qrResultWrap" class="qr-result-wrap">
+              <div id="qrCanvasWrap" style="background:#fff; padding:12px; border-radius:3px; display:flex; align-items:center; justify-content:center; width:170px; margin:10px auto 0;"></div>
+              <a id="qrDownloadLink" download="qrcode.png" style="display:none; margin-top:10px; text-align:center; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--rose-bright); text-decoration:none;">Download PNG</a>
             </div>
-            <a id="qrDownloadLink" download="qrcode.png" style="display:none; margin-top:10px; text-align:center; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--rose-bright); text-decoration:none;">Download PNG</a>
           </div>
         </div>
         <button class="chat-toggle-btn" id="chatToggleBtn" title="AI Chat" aria-label="Toggle AI Chat">
@@ -2938,14 +2946,16 @@
   function generateQR(){
     const text = document.getElementById('qrInput').value.trim();
     const wrap = document.getElementById('qrCanvasWrap');
+    const resultWrap = document.getElementById('qrResultWrap');
     const downloadLink = document.getElementById('qrDownloadLink');
     if(!text){
-      wrap.innerHTML = '<span class="tile-hint" style="color:#999;">Type something above</span>';
+      resultWrap.classList.remove('open');
       downloadLink.style.display = 'none';
       return;
     }
     if(!window.QRCode){
       wrap.innerHTML = '<span class="tile-hint" style="color:#c00;">QR library failed to load.</span>';
+      resultWrap.classList.add('open');
       return;
     }
     wrap.innerHTML = '<canvas id="qrCanvas"></canvas>';
@@ -2954,11 +2964,13 @@
         console.error('QR generation failed', err);
         wrap.innerHTML = '<span class="tile-hint" style="color:#c00;">Failed to generate.</span>';
         downloadLink.style.display = 'none';
+        resultWrap.classList.add('open');
         return;
       }
       const canvas = document.getElementById('qrCanvas');
       downloadLink.href = canvas.toDataURL('image/png');
       downloadLink.style.display = 'block';
+      resultWrap.classList.add('open');
     });
   }
   document.getElementById('qrInput').addEventListener('input', () => {
@@ -3006,11 +3018,34 @@
     return Math.max(-60, 20 * Math.log10(peak));
   }
 
+  // Canvases default to backing-store resolution == CSS pixel size, which
+  // looks blurry on any HiDPI/Retina display (the classic canvas blur bug).
+  // This sizes the actual pixel buffer to match device pixel density, then
+  // scales the drawing context so all existing draw math (in CSS-pixel
+  // units) still works unchanged, but renders crisp.
+  //
+  // Critically, it only touches canvas.width/height when the size actually
+  // changed — reassigning them (even to the same value) always clears the
+  // canvas, which was silently wiping the goniometer's persistence trail
+  // every single frame before this fix.
+  const canvasDPISizes = new WeakMap();
+  function setupCanvasDPI(canvas){
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const last = canvasDPISizes.get(canvas);
+    if(!last || last.w !== w || last.h !== h || last.dpr !== dpr){
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvasDPISizes.set(canvas, { w, h, dpr });
+      const ctx2d = canvas.getContext('2d');
+      ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    return { ctx2d: canvas.getContext('2d'), w, h };
+  }
+
   function drawWaveform(){
     const canvas = document.getElementById('analyzerWaveform');
-    const ctx2d = canvas.getContext('2d');
-    const w = canvas.width = canvas.clientWidth;
-    const h = canvas.height = canvas.clientHeight;
+    const { ctx2d, w, h } = setupCanvasDPI(canvas);
     ctx2d.clearRect(0, 0, w, h);
     if(!analyzerL || !analyzerR) return;
 
@@ -3060,32 +3095,54 @@
 
   function drawSpectrum(){
     const canvas = document.getElementById('analyzerSpectrum');
-    const ctx2d = canvas.getContext('2d');
-    const w = canvas.width = canvas.clientWidth;
-    const h = canvas.height = canvas.clientHeight;
+    const { ctx2d, w, h } = setupCanvasDPI(canvas);
     ctx2d.clearRect(0, 0, w, h);
     if(!analyzerL) return;
     const bufferLength = analyzerL.frequencyBinCount;
     const data = new Uint8Array(bufferLength);
     analyzerL.getByteFrequencyData(data);
-    const barCount = 64;
-    const barWidth = w / barCount;
-    for(let i = 0; i < barCount; i++){
-      // log-ish grouping: sample further into the buffer for higher bars
-      const idx = Math.floor(Math.pow(i / barCount, 2) * bufferLength);
-      const val = data[idx] / 255;
-      const barH = val * h;
-      const hue = 340 - val * 40;
-      ctx2d.fillStyle = `hsl(${hue}, 80%, ${45 + val*15}%)`;
-      ctx2d.fillRect(i * barWidth, h - barH, barWidth - 1, barH);
+
+    // Dense point sampling (one per horizontal pixel-pair) drawn as a smooth
+    // filled curve rather than a handful of blocky separated bars.
+    const pointCount = Math.max(120, Math.floor(w / 2));
+    const points = [];
+    for(let i = 0; i < pointCount; i++){
+      const idx = Math.floor(Math.pow(i / pointCount, 2) * bufferLength);
+      points.push(data[idx] / 255);
     }
+
+    const grad = ctx2d.createLinearGradient(0, h, 0, 0);
+    grad.addColorStop(0, 'rgba(74,222,128,.55)');
+    grad.addColorStop(0.6, 'rgba(251,191,36,.6)');
+    grad.addColorStop(1, 'rgba(225,29,72,.75)');
+
+    ctx2d.beginPath();
+    ctx2d.moveTo(0, h);
+    points.forEach((val, i) => {
+      const x = (i / (pointCount - 1)) * w;
+      const y = h - val * h;
+      ctx2d.lineTo(x, y);
+    });
+    ctx2d.lineTo(w, h);
+    ctx2d.closePath();
+    ctx2d.fillStyle = grad;
+    ctx2d.fill();
+
+    // Crisp top edge line for definition
+    ctx2d.beginPath();
+    points.forEach((val, i) => {
+      const x = (i / (pointCount - 1)) * w;
+      const y = h - val * h;
+      if(i === 0) ctx2d.moveTo(x, y); else ctx2d.lineTo(x, y);
+    });
+    ctx2d.strokeStyle = 'rgba(255,255,255,.5)';
+    ctx2d.lineWidth = 1;
+    ctx2d.stroke();
   }
 
   function drawMeters(){
     const canvas = document.getElementById('analyzerMeters');
-    const ctx2d = canvas.getContext('2d');
-    const w = canvas.width = canvas.clientWidth;
-    const h = canvas.height = canvas.clientHeight;
+    const { ctx2d, w, h } = setupCanvasDPI(canvas);
     ctx2d.clearRect(0, 0, w, h);
     if(!analyzerL || !analyzerR) return;
 
@@ -3121,9 +3178,7 @@
 
   function drawGonio(){
     const canvas = document.getElementById('analyzerGonio');
-    const ctx2d = canvas.getContext('2d');
-    const w = canvas.width = canvas.clientWidth;
-    const h = canvas.height = canvas.clientHeight;
+    const { ctx2d, w, h } = setupCanvasDPI(canvas);
     if(!analyzerL || !analyzerR){
       ctx2d.clearRect(0, 0, w, h);
       return;
@@ -3159,7 +3214,7 @@
     // full stereo width spreads horizontally — same convention as Ozone
     // Imager / MiniMeters' goniometer.
     ctx2d.fillStyle = 'rgba(225,29,72,.55)';
-    const step = 4; // subsample for performance, plenty dense for a scope
+    const step = 16; // subsample for performance - buffer is now 8192 samples (was 2048), keep same point density
     for(let i = 0; i < bufL.length; i += step){
       const l = bufL[i], r = bufR[i];
       const x = cx + (r - l) * scale * 0.7;
@@ -3175,9 +3230,7 @@
 
   function drawCorrelation(){
     const canvas = document.getElementById('analyzerCorrelation');
-    const ctx2d = canvas.getContext('2d');
-    const w = canvas.width = canvas.clientWidth;
-    const h = canvas.height = canvas.clientHeight;
+    const { ctx2d, w, h } = setupCanvasDPI(canvas);
     ctx2d.clearRect(0, 0, w, h);
     if(!analyzerL || !analyzerR) return;
 
@@ -3241,13 +3294,27 @@
         return;
       }
       analyzerCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const track = analyzerStream.getAudioTracks()[0];
+      const settings = track.getSettings ? track.getSettings() : {};
+      console.log('Analyzer audio track channels:', settings.channelCount || 'unknown', settings);
+
       const source = analyzerCtx.createMediaStreamSource(analyzerStream);
+      // Web Audio's default channelInterpretation is "speakers", which applies
+      // automatic up/down-mixing based on channel count heuristics - this can
+      // silently collapse or blend true stereo content. Forcing "discrete"
+      // here and on the splitter guarantees each channel passes through
+      // untouched instead of being summed.
+      source.channelCount = 2;
+      source.channelCountMode = 'explicit';
+      source.channelInterpretation = 'discrete';
+
       const splitter = analyzerCtx.createChannelSplitter(2);
+      splitter.channelInterpretation = 'discrete';
       source.connect(splitter);
       analyzerL = analyzerCtx.createAnalyser();
       analyzerR = analyzerCtx.createAnalyser();
-      analyzerL.fftSize = 2048;
-      analyzerR.fftSize = 2048;
+      analyzerL.fftSize = 8192;
+      analyzerR.fftSize = 8192;
       splitter.connect(analyzerL, 0);
       splitter.connect(analyzerR, 1);
 
