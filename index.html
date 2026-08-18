@@ -472,14 +472,14 @@
 
   .qr-popover{
     display:none;
-    position:absolute; top:calc(100% + 10px); right:0;
+    position:fixed;
     width:220px;
     background:var(--bg-raised);
     border:1px solid var(--line);
     border-radius:4px;
     box-shadow:0 12px 30px rgba(0,0,0,.4);
     padding:14px;
-    z-index:150;
+    z-index:500;
   }
   .qr-popover.show{ display:block; animation:qrPopIn .15s ease; }
   @keyframes qrPopIn{
@@ -1883,7 +1883,13 @@
   function toggleQrPopover(e){
     e.stopPropagation();
     const pop = document.getElementById('qrPopover');
+    const btn = document.getElementById('qrToggleBtn');
     const opening = !pop.classList.contains('show');
+    if(opening){
+      const rect = btn.getBoundingClientRect();
+      pop.style.top = (rect.bottom + 10) + 'px';
+      pop.style.right = (window.innerWidth - rect.right) + 'px';
+    }
     pop.classList.toggle('show', opening);
     if(opening) document.getElementById('qrInput').focus({ preventScroll: true });
   }
