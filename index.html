@@ -773,7 +773,9 @@
     transit: { w:6,  h:5 },
     currency:{ w:4,  h:4 },
     timer:   { w:4,  h:4 },
-    qr:      { w:4,  h:5 }
+    qr:      { w:4,  h:5 },
+    taptempo:{ w:4,  h:4 },
+    analyzer:{ w:8,  h:8 }
   };
 
   function wrapAsGridItem(id, tileEl){
@@ -889,6 +891,43 @@
     </div>
   `;
   grid.appendChild(wrapAsGridItem('qr', qrTile));
+
+  const tapTempoTile = document.createElement('div');
+  tapTempoTile.className = 'tile';
+  tapTempoTile.dataset.module = 'taptempo';
+  tapTempoTile.innerHTML = `
+    <div class="tile-head">
+      <div class="tile-name">TAP TEMPO</div>
+      <div class="tile-head-right"><div class="tile-idx">12</div></div>
+    </div>
+    <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; justify-content:center;">
+      <div id="tapBpm" style="font-family:'JetBrains Mono',monospace; font-size:48px; color:var(--text);">—</div>
+      <div class="tile-hint" style="color:var(--text-dim);">BPM</div>
+      <button class="tile-cta" id="tapBtn" style="margin-top:10px; padding:14px 40px; font-size:13px;">TAP (or press space)</button>
+      <button class="tile-cta" id="tapResetBtn" style="margin-top:4px;">Reset</button>
+    </div>
+  `;
+  grid.appendChild(wrapAsGridItem('taptempo', tapTempoTile));
+
+  const analyzerTile = document.createElement('div');
+  analyzerTile.className = 'tile';
+  analyzerTile.dataset.module = 'analyzer';
+  analyzerTile.innerHTML = `
+    <div class="tile-head">
+      <div class="tile-name">LIVE ANALYZER</div>
+      <div class="tile-head-right"><div class="tile-idx">13</div></div>
+    </div>
+    <div class="tile-hint" style="margin-bottom:8px;">Captures audio from a tab or your screen — pick "share audio" when prompted. Nothing is recorded or sent anywhere.</div>
+    <button class="tile-cta" id="analyzerToggleBtn" style="margin-bottom:10px;">Start</button>
+    <div style="width:100%; display:flex; flex-direction:column; gap:10px; flex:1; min-height:0;">
+      <canvas id="analyzerSpectrum" style="width:100%; height:120px; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
+      <div style="display:flex; gap:10px; height:100px;">
+        <canvas id="analyzerMeters" style="flex:1; height:100%; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
+        <canvas id="analyzerCorrelation" style="width:120px; height:100%; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
+      </div>
+    </div>
+  `;
+  grid.appendChild(wrapAsGridItem('analyzer', analyzerTile));
 
   // ---- GridStack init: drag, resize, and persisted layout ----
   const gridStack = GridStack.init({
@@ -2828,6 +2867,211 @@
   document.getElementById('qrInput').addEventListener('input', () => {
     clearTimeout(qrDebounce);
     qrDebounce = setTimeout(generateQR, 300);
+  });
+
+  // ---- Tap Tempo ----
+  let tapTimes = [];
+  function registerTap(){
+    const now = performance.now();
+    if(tapTimes.length && now - tapTimes[tapTimes.length - 1] > 2000) tapTimes = []; // idle too long, restart
+    tapTimes.push(now);
+    if(tapTimes.length > 8) tapTimes.shift();
+    if(tapTimes.length >= 2){
+      const intervals = [];
+      for(let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i-1]);
+      const avgMs = intervals.reduce((a,b) => a+b, 0) / intervals.length;
+      const bpm = Math.round(60000 / avgMs);
+      document.getElementById('tapBpm').textContent = bpm;
+    }
+  }
+  document.getElementById('tapBtn').addEventListener('click', (e) => { e.stopPropagation(); registerTap(); });
+  document.getElementById('tapResetBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    tapTimes = [];
+    document.getElementById('tapBpm').textContent = '—';
+  });
+  document.addEventListener('keydown', (e) => {
+    if(e.code === 'Space' && !e.target.matches('input, textarea')){
+      e.preventDefault();
+      registerTap();
+    }
+  });
+
+  // ---- Live Analyzer (Web Audio API, local only - nothing recorded/sent) ----
+  let analyzerStream = null, analyzerCtx = null, analyzerAnimFrame = null;
+  let analyzerL = null, analyzerR = null;
+  let peakHoldL = 0, peakHoldR = 0, peakHoldDecay = 0.005;
+
+  function dbFromPeak(peak){
+    if(peak <= 0.0001) return -60;
+    return Math.max(-60, 20 * Math.log10(peak));
+  }
+
+  function drawSpectrum(){
+    const canvas = document.getElementById('analyzerSpectrum');
+    const ctx2d = canvas.getContext('2d');
+    const w = canvas.width = canvas.clientWidth;
+    const h = canvas.height = canvas.clientHeight;
+    ctx2d.clearRect(0, 0, w, h);
+    if(!analyzerL) return;
+    const bufferLength = analyzerL.frequencyBinCount;
+    const data = new Uint8Array(bufferLength);
+    analyzerL.getByteFrequencyData(data);
+    const barCount = 64;
+    const barWidth = w / barCount;
+    for(let i = 0; i < barCount; i++){
+      // log-ish grouping: sample further into the buffer for higher bars
+      const idx = Math.floor(Math.pow(i / barCount, 2) * bufferLength);
+      const val = data[idx] / 255;
+      const barH = val * h;
+      const hue = 340 - val * 40;
+      ctx2d.fillStyle = `hsl(${hue}, 80%, ${45 + val*15}%)`;
+      ctx2d.fillRect(i * barWidth, h - barH, barWidth - 1, barH);
+    }
+  }
+
+  function drawMeters(){
+    const canvas = document.getElementById('analyzerMeters');
+    const ctx2d = canvas.getContext('2d');
+    const w = canvas.width = canvas.clientWidth;
+    const h = canvas.height = canvas.clientHeight;
+    ctx2d.clearRect(0, 0, w, h);
+    if(!analyzerL || !analyzerR) return;
+
+    const bufL = new Float32Array(analyzerL.fftSize);
+    const bufR = new Float32Array(analyzerR.fftSize);
+    analyzerL.getFloatTimeDomainData(bufL);
+    analyzerR.getFloatTimeDomainData(bufR);
+    const peakL = Math.max(...Array.from(bufL, Math.abs));
+    const peakR = Math.max(...Array.from(bufR, Math.abs));
+    const dbL = dbFromPeak(peakL), dbR = dbFromPeak(peakR);
+
+    peakHoldL = Math.max(dbL, peakHoldL - peakHoldDecay * 60);
+    peakHoldR = Math.max(dbR, peakHoldR - peakHoldDecay * 60);
+
+    const barGap = 6, barW = (w - barGap * 3) / 2;
+    [ ['L', dbL, peakHoldL, barGap], ['R', dbR, peakHoldR, barGap*2 + barW] ].forEach(([label, db, hold, x]) => {
+      const pct = Math.max(0, (db + 60) / 60);
+      const holdPct = Math.max(0, (hold + 60) / 60);
+      ctx2d.fillStyle = 'rgba(255,255,255,.06)';
+      ctx2d.fillRect(x, 0, barW, h);
+      const barH = pct * h;
+      const grad = ctx2d.createLinearGradient(0, h, 0, 0);
+      grad.addColorStop(0, '#4ade80'); grad.addColorStop(0.7, '#fbbf24'); grad.addColorStop(1, '#e11d48');
+      ctx2d.fillStyle = grad;
+      ctx2d.fillRect(x, h - barH, barW, barH);
+      ctx2d.fillStyle = '#fff';
+      ctx2d.fillRect(x, h - holdPct*h - 1, barW, 2);
+      ctx2d.fillStyle = 'var(--text-dim)';
+      ctx2d.font = "9px 'JetBrains Mono', monospace";
+      ctx2d.fillText(label, x + barW/2 - 3, h - 4);
+    });
+  }
+
+  function drawCorrelation(){
+    const canvas = document.getElementById('analyzerCorrelation');
+    const ctx2d = canvas.getContext('2d');
+    const w = canvas.width = canvas.clientWidth;
+    const h = canvas.height = canvas.clientHeight;
+    ctx2d.clearRect(0, 0, w, h);
+    if(!analyzerL || !analyzerR) return;
+
+    const bufL = new Float32Array(analyzerL.fftSize);
+    const bufR = new Float32Array(analyzerR.fftSize);
+    analyzerL.getFloatTimeDomainData(bufL);
+    analyzerR.getFloatTimeDomainData(bufR);
+    let sumLR = 0, sumLL = 0, sumRR = 0;
+    for(let i = 0; i < bufL.length; i++){
+      sumLR += bufL[i] * bufR[i];
+      sumLL += bufL[i] * bufL[i];
+      sumRR += bufR[i] * bufR[i];
+    }
+    const denom = Math.sqrt(sumLL * sumRR);
+    const correlation = denom > 0.00001 ? sumLR / denom : 1;
+
+    ctx2d.fillStyle = 'var(--text-dim)';
+    ctx2d.font = "9px 'JetBrains Mono', monospace";
+    ctx2d.fillText('PHASE', 8, 14);
+
+    const midY = h / 2 + 6;
+    const barTop = midY - 8, barH2 = 16;
+    ctx2d.fillStyle = 'rgba(255,255,255,.08)';
+    ctx2d.fillRect(8, barTop, w - 16, barH2);
+    const center = 8 + (w - 16) / 2;
+    const pos = center + (correlation) * (w - 16) / 2;
+    const color = correlation < -0.2 ? '#e11d48' : (correlation < 0.4 ? '#fbbf24' : '#4ade80');
+    ctx2d.fillStyle = color;
+    ctx2d.fillRect(Math.min(center, pos), barTop, Math.abs(pos - center), barH2);
+    ctx2d.fillStyle = '#fff';
+    ctx2d.fillRect(center - 1, barTop - 3, 2, barH2 + 6);
+
+    ctx2d.fillStyle = 'var(--text-dim)';
+    ctx2d.font = "8px 'JetBrains Mono', monospace";
+    ctx2d.fillText('-1', 6, h - 4);
+    ctx2d.fillText('+1', w - 18, h - 4);
+    ctx2d.fillText(correlation.toFixed(2), center - 10, h - 24);
+  }
+
+  function analyzerLoop(){
+    drawSpectrum();
+    drawMeters();
+    drawCorrelation();
+    analyzerAnimFrame = requestAnimationFrame(analyzerLoop);
+  }
+
+  async function startAnalyzer(){
+    const btn = document.getElementById('analyzerToggleBtn');
+    try{
+      analyzerStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      // Video is only requested because Chrome requires it for getDisplayMedia —
+      // we don't need it, so stop it immediately to free up resources.
+      analyzerStream.getVideoTracks().forEach(t => t.stop());
+      if(!analyzerStream.getAudioTracks().length){
+        alert('No audio track was shared — make sure to check "Share audio" in the picker.');
+        analyzerStream.getTracks().forEach(t => t.stop());
+        analyzerStream = null;
+        return;
+      }
+      analyzerCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const source = analyzerCtx.createMediaStreamSource(analyzerStream);
+      const splitter = analyzerCtx.createChannelSplitter(2);
+      source.connect(splitter);
+      analyzerL = analyzerCtx.createAnalyser();
+      analyzerR = analyzerCtx.createAnalyser();
+      analyzerL.fftSize = 2048;
+      analyzerR.fftSize = 2048;
+      splitter.connect(analyzerL, 0);
+      splitter.connect(analyzerR, 1);
+
+      analyzerStream.getAudioTracks()[0].addEventListener('ended', stopAnalyzer);
+
+      btn.textContent = 'Stop';
+      analyzerLoop();
+    }catch(err){
+      console.error('analyzer start failed', err);
+      if(err.name !== 'NotAllowedError') alert('Could not start analyzer: ' + err.message);
+    }
+  }
+
+  function stopAnalyzer(){
+    if(analyzerAnimFrame) cancelAnimationFrame(analyzerAnimFrame);
+    analyzerAnimFrame = null;
+    if(analyzerStream) analyzerStream.getTracks().forEach(t => t.stop());
+    analyzerStream = null;
+    if(analyzerCtx) analyzerCtx.close();
+    analyzerCtx = null;
+    analyzerL = null; analyzerR = null;
+    document.getElementById('analyzerToggleBtn').textContent = 'Start';
+    ['analyzerSpectrum', 'analyzerMeters', 'analyzerCorrelation'].forEach(id => {
+      const c = document.getElementById(id);
+      const ctx2d = c.getContext('2d');
+      ctx2d.clearRect(0, 0, c.width, c.height);
+    });
+  }
+
+  document.getElementById('analyzerToggleBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if(analyzerStream) stopAnalyzer(); else startAnalyzer();
   });
 </script>
 
