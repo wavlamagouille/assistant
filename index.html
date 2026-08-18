@@ -259,6 +259,15 @@
   .transit-conn:hover{ opacity:.8; }
   .transit-conn:last-child{ border-bottom:none; }
   .transit-sbb-link:hover{ text-decoration:underline; }
+  .transit-mode-toggle{ display:flex; gap:6px; margin-bottom:2px; }
+  .transit-mode-btn{
+    flex:1; background:var(--bg); border:1px solid var(--line); border-radius:2px;
+    color:var(--text-dim); padding:6px 8px; cursor:pointer;
+    font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:.05em; text-transform:uppercase;
+    transition:color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .transit-mode-btn:hover{ color:var(--text); }
+  .transit-mode-btn.active{ color:var(--rose-bright); border-color:var(--rose-bright); background:rgba(225,29,72,.1); }
   .precip-outlook{ display:flex; align-items:flex-end; gap:3px; height:56px; }
   .precip-bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:3px; }
   .precip-bar{ width:100%; max-width:14px; background:var(--rose-bright); opacity:.75; border-radius:1px 1px 0 0; min-height:2px; }
@@ -2051,6 +2060,11 @@
 
     bodyEl.innerHTML = `
       <div style="width:100%; display:flex; flex-direction:column; gap:8px;">
+        <div class="transit-mode-toggle" id="transitModeToggle">
+          <button class="transit-mode-btn active" data-mode="transit">Transit</button>
+          <button class="transit-mode-btn" data-mode="flights">Flights</button>
+          <button class="transit-mode-btn" data-mode="uber">Uber</button>
+        </div>
         <div style="position:relative;">
           <input id="transitFrom" type="text" class="transit-input" style="width:100%; box-sizing:border-box;" placeholder="From…" value="Rolle" autocomplete="off">
           <div id="transitFromSuggestions" class="city-suggestions"></div>
@@ -2059,7 +2073,7 @@
           <input id="transitTo" type="text" class="transit-input" style="width:100%; box-sizing:border-box;" placeholder="To…" autocomplete="off">
           <div id="transitToSuggestions" class="city-suggestions"></div>
         </div>
-        <div style="display:flex; gap:8px;">
+        <div id="transitDateTimeRow" style="display:flex; gap:8px;">
           <input id="transitDate" type="date" class="transit-input" style="flex:1; min-width:0;" value="${todayStr}">
           <input id="transitTime" type="time" class="transit-input" style="flex:1; min-width:0;" value="${timeStr}">
         </div>
@@ -2067,6 +2081,38 @@
         <div id="transitMsg" class="tile-hint" style="display:none; color:var(--rose-bright);"></div>
       </div>
     `;
+
+    let transitMode = 'transit';
+    document.querySelectorAll('#transitModeToggle .transit-mode-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        transitMode = btn.dataset.mode;
+        document.querySelectorAll('#transitModeToggle .transit-mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+        const dtRow = document.getElementById('transitDateTimeRow');
+        const timeInput = document.getElementById('transitTime');
+        const searchBtn = document.getElementById('transitSearchBtn');
+        const fromInput = document.getElementById('transitFrom');
+        const toInput = document.getElementById('transitTo');
+        if(transitMode === 'transit'){
+          dtRow.style.display = 'flex';
+          timeInput.style.display = '';
+          fromInput.placeholder = 'From…';
+          toInput.placeholder = 'To…';
+          searchBtn.textContent = 'Search';
+        } else if(transitMode === 'flights'){
+          dtRow.style.display = 'flex';
+          timeInput.style.display = 'none';
+          fromInput.placeholder = 'Origin city or airport…';
+          toInput.placeholder = 'Destination city or airport…';
+          searchBtn.textContent = 'Search on Google Flights';
+        } else if(transitMode === 'uber'){
+          dtRow.style.display = 'none';
+          fromInput.placeholder = 'Pickup address…';
+          toInput.placeholder = 'Drop-off address…';
+          searchBtn.textContent = 'Open in Uber';
+        }
+      });
+    });
 
     let transitMsgTimer = null;
     function showTransitMsg(text){
@@ -2127,6 +2173,23 @@
 
       if(!from || !to){
         showTransitMsg('Enter both a departure and destination.');
+        return;
+      }
+
+      if(transitMode === 'flights'){
+        const dateStr = date || todayStr;
+        const q = `Flights from ${from} to ${to} on ${dateStr}`;
+        window.open('https://www.google.com/travel/flights?q=' + encodeURIComponent(q), '_blank', 'noopener');
+        return;
+      }
+
+      if(transitMode === 'uber'){
+        const params = new URLSearchParams({
+          action: 'setPickup',
+          'pickup[formatted_address]': from,
+          'dropoff[formatted_address]': to
+        });
+        window.open('https://m.uber.com/ul/?' + params.toString(), '_blank', 'noopener');
         return;
       }
 
