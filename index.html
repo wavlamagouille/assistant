@@ -634,6 +634,9 @@
         <button class="chat-toggle-btn" id="fullscreenToggleBtn" title="Fullscreen" aria-label="Toggle fullscreen">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
         </button>
+        <button class="chat-toggle-btn" id="qrToggleBtn" title="QR Code Generator" aria-label="Open QR code generator">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM19 14h2v2h-2zM14 19h2v2h-2zM19 19h2v2h-2z"/></svg>
+        </button>
         <button class="chat-toggle-btn" id="chatToggleBtn" title="AI Chat" aria-label="Toggle AI Chat">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </button>
@@ -703,6 +706,22 @@
         <button class="modal-close" id="projectModalClose">✕</button>
       </div>
       <div id="projectModalBody" style="padding:20px; overflow-y:auto; max-height:70vh;"></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="qrModalBackdrop">
+    <div class="modal-panel" style="width:min(420px, 92vw);">
+      <div class="modal-head">
+        <div class="modal-title">QR CODE</div>
+        <button class="modal-close" id="qrModalClose">✕</button>
+      </div>
+      <div style="padding:20px; display:flex; flex-direction:column; align-items:center; gap:14px;">
+        <input id="qrInput" type="text" class="transit-input" placeholder="Paste a link or text…" style="width:100%; box-sizing:border-box;">
+        <div id="qrCanvasWrap" style="background:#fff; padding:14px; border-radius:3px; display:flex; align-items:center; justify-content:center; min-height:200px; width:200px;">
+          <span class="tile-hint" style="color:#999;">Type something above</span>
+        </div>
+        <a id="qrDownloadLink" download="qrcode.png" style="display:none; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--rose-bright); text-decoration:none;">Download PNG</a>
+      </div>
     </div>
   </div>
 
@@ -819,7 +838,6 @@
     transit: { w:6,  h:5 },
     currency:{ w:4,  h:4 },
     timer:   { w:4,  h:4 },
-    qr:      { w:4,  h:5 },
     taptempo:{ w:4,  h:4 },
     analyzer:{ w:9,  h:12 }
   };
@@ -922,24 +940,6 @@
     </div>
   `;
   grid.appendChild(wrapAsGridItem('timer', timerTile));
-
-  const qrTile = document.createElement('div');
-  qrTile.className = 'tile';
-  qrTile.dataset.module = 'qr';
-  qrTile.innerHTML = `
-    <div class="tile-head">
-      <div class="tile-name">QR CODE</div>
-      <div class="tile-head-right"><div class="tile-idx">11</div></div>
-    </div>
-    <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:10px; flex:1;">
-      <input id="qrInput" type="text" class="transit-input" placeholder="Paste a link or text…" style="width:100%; box-sizing:border-box;">
-      <div id="qrCanvasWrap" style="background:#fff; padding:10px; border-radius:3px; display:flex; align-items:center; justify-content:center; min-height:160px; width:160px;">
-        <span class="tile-hint" style="color:#999;">Type something above</span>
-      </div>
-      <a id="qrDownloadLink" download="qrcode.png" style="display:none; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--rose-bright); text-decoration:none;">Download PNG</a>
-    </div>
-  `;
-  grid.appendChild(wrapAsGridItem('qr', qrTile));
 
   const tapTempoTile = document.createElement('div');
   tapTempoTile.className = 'tile';
@@ -1869,11 +1869,26 @@
 
   document.getElementById('modalClose').addEventListener('click', closeChart);
   modalBackdrop.addEventListener('click', (e) => { if(e.target === modalBackdrop) closeChart(); });
+
+  function openQrModal(){
+    document.getElementById('qrModalBackdrop').classList.add('show');
+    document.getElementById('qrInput').focus({ preventScroll: true });
+  }
+  function closeQrModal(){
+    document.getElementById('qrModalBackdrop').classList.remove('show');
+  }
+  document.getElementById('qrToggleBtn').addEventListener('click', openQrModal);
+  document.getElementById('qrModalClose').addEventListener('click', closeQrModal);
+  document.getElementById('qrModalBackdrop').addEventListener('click', (e) => {
+    if(e.target.id === 'qrModalBackdrop') closeQrModal();
+  });
+
   document.addEventListener('keydown', (e) => {
     if(e.key !== 'Escape') return;
     closeChart();
     closeRadarModal();
     closeTransitModal();
+    closeQrModal();
   });
 
   grid.addEventListener('click', (e) => {
