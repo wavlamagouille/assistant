@@ -1413,11 +1413,32 @@
         const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbols)}&apikey=${TWELVE_DATA_KEY}`;
         const res = await fetch(url);
         const data = await res.json();
-        stocksHTML = sectionLabel('Stocks & more') + STOCKS.map(asset => {
-          const q = STOCKS.length > 1 ? data[asset.symbol] : data;
-          if(!q || q.status === 'error' || q.close == null) return '';
-          return renderStockRow(asset, q);
-        }).join('');
+
+        // Detect a batch-level failure (e.g. one bad symbol, or a plan/limit
+        // restriction) rather than assuming the expected per-symbol shape —
+        // a malformed/error response here used to silently wipe out every
+        // stock instead of just the one that actually failed.
+        const looksLikeBatchError = STOCKS.length > 1 &&
+          (data.status === 'error' || data.code || !STOCKS.some(s => data[s.symbol]));
+
+        let rows;
+        if(looksLikeBatchError){
+          console.warn('markets: batch quote looked malformed, falling back to individual requests', data);
+          const results = await Promise.allSettled(STOCKS.map(async asset => {
+            const r = await fetch(`https://api.twelvedata.com/quote?symbol=${encodeURIComponent(asset.symbol)}&apikey=${TWELVE_DATA_KEY}`);
+            const q = await r.json();
+            if(!q || q.status === 'error' || q.close == null) return '';
+            return renderStockRow(asset, q);
+          }));
+          rows = results.map(r => r.status === 'fulfilled' ? r.value : '').join('');
+        } else {
+          rows = STOCKS.map(asset => {
+            const q = STOCKS.length > 1 ? data[asset.symbol] : data;
+            if(!q || q.status === 'error' || q.close == null) return '';
+            return renderStockRow(asset, q);
+          }).join('');
+        }
+        stocksHTML = sectionLabel('Stocks & more') + rows;
       }catch(err){
         console.error('stocks fetch failed', err);
         stocksHTML = sectionLabel('Stocks & more') + `<div class="tile-hint">Stock/index prices failed to load.</div>`;
@@ -1490,9 +1511,12 @@
     const tile = document.querySelector('[data-module="markets"]').closest('.tile');
     const head = tile.querySelector('.tile-head');
     const searchRow = document.createElement('div');
-    searchRow.style.cssText = 'display:flex; gap:8px; margin:2px 0 4px;';
+    searchRow.style.cssText = 'display:flex; gap:8px; margin:2px 0 4px; position:relative;';
     searchRow.innerHTML = `
-      <input id="stockSearchInput" type="text" placeholder="Add ticker (e.g. TSLA)…" style="flex:1; min-width:0; background:var(--bg); border:1px solid var(--line); border-radius:2px; color:var(--text); padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none;">
+      <div style="flex:1; min-width:0; position:relative;">
+        <input id="stockSearchInput" type="text" placeholder="Add ticker (e.g. TSLA)…" style="width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--line); border-radius:2px; color:var(--text); padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none;" autocomplete="off">
+        <div id="stockSuggestions" class="city-suggestions"></div>
+      </div>
       <button id="stockSearchBtn" class="tile-cta" style="margin-top:0;">Add</button>
     `;
     head.insertAdjacentElement('afterend', searchRow);
@@ -1503,14 +1527,57 @@
     msg.style.cssText = 'display:none; color:var(--rose-bright); margin-bottom:2px;';
     searchRow.insertAdjacentElement('afterend', msg);
 
+    const stockInput = document.getElementById('stockSearchInput');
+    const stockSuggBox = document.getElementById('stockSuggestions');
+    let stockDebounce = null;
+
+    stockInput.addEventListener('input', () => {
+      const q = stockInput.value.trim();
+      clearTimeout(stockDebounce);
+      hideStockMsg();
+      if(!TWELVE_DATA_KEY || q.length < 1){ stockSuggBox.classList.remove('show'); return; }
+      stockDebounce = setTimeout(async () => {
+        try{
+          const res = await fetchWithTimeout(`https://api.twelvedata.com/symbol_search?symbol=${encodeURIComponent(q)}&apikey=${TWELVE_DATA_KEY}`, null, 6000);
+          const data = await res.json();
+          const matches = (data.data || []).slice(0, 6);
+          if(!matches.length){ stockSuggBox.classList.remove('show'); return; }
+          stockSuggBox.innerHTML = matches.map((m, i) => `
+            <div class="city-suggestion" data-idx="${i}">
+              <span class="cs-name">${m.symbol}</span>
+              <span class="cs-region">${m.instrument_name || ''}</span>
+            </div>
+          `).join('');
+          stockSuggBox.classList.add('show');
+          stockSuggBox.querySelectorAll('.city-suggestion').forEach((el, i) => {
+            el.addEventListener('click', (e) => {
+              e.stopPropagation();
+              stockInput.value = matches[i].symbol;
+              stockSuggBox.classList.remove('show');
+              searchStock(matches[i].symbol);
+            });
+          });
+        }catch(err){ console.error('stock symbol search failed', err); }
+      }, 300);
+    });
+
+    document.addEventListener('click', (e) => {
+      if(!e.target.closest('#stockSearchInput') && !e.target.closest('#stockSuggestions')){
+        stockSuggBox.classList.remove('show');
+      }
+    });
+
     document.getElementById('stockSearchBtn').addEventListener('click', (e) => {
       e.stopPropagation();
+      stockSuggBox.classList.remove('show');
       searchStock(document.getElementById('stockSearchInput').value);
     });
     document.getElementById('stockSearchInput').addEventListener('keydown', (e) => {
-      if(e.key === 'Enter') searchStock(e.target.value);
+      if(e.key === 'Enter'){
+        stockSuggBox.classList.remove('show');
+        searchStock(e.target.value);
+      }
     });
-    document.getElementById('stockSearchInput').addEventListener('input', hideStockMsg);
   }
   augmentMarketsTile();
   connectMarkets();
