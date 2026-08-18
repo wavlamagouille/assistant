@@ -1380,7 +1380,10 @@
           <span style="font-family:'Bebas Neue',sans-serif; font-size:15px; color:var(--text-mid);">${asset.label}</span>
           <span style="font-family:'JetBrains Mono',monospace; font-size:15px;">${price.toLocaleString('en-US',{maximumFractionDigits:2})}</span>
         </div>
-        <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:${color};">${sign}${pct.toFixed(1)}%</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:${color};">${sign}${pct.toFixed(1)}%</span>
+          <button class="stock-remove-btn" data-remove-symbol="${asset.symbol}" title="Remove ${asset.symbol}" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; line-height:1; padding:0 2px;">×</button>
+        </div>
       </div>`;
   }
 
@@ -1434,7 +1437,12 @@
         } else {
           const rows = STOCKS.map(asset => {
             const q = STOCKS.length > 1 ? data[asset.symbol] : data;
-            if(!q || q.status === 'error' || q.close == null) return '';
+            if(!q || q.status === 'error' || q.close == null){
+              return `<div class="coin-row" style="width:100%; display:flex; align-items:center; justify-content:space-between; padding:4px 0;">
+                <span style="font-family:'Bebas Neue',sans-serif; font-size:15px; color:var(--text-dim);">${asset.label} <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--rose-bright); text-transform:uppercase;">unavailable</span></span>
+                <button class="stock-remove-btn" data-remove-symbol="${asset.symbol}" title="Remove ${asset.symbol}" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; line-height:1; padding:0 2px;">×</button>
+              </div>`;
+            }
             return renderStockRow(asset, q);
           }).join('');
           lastGoodStocksRows = rows;
@@ -1492,18 +1500,14 @@
     btn.disabled = true;
     // No separate validation request here — that used to mean two Twelve Data
     // calls per add (validate, then refresh), which could trip the free-tier
-    // rate limit. The normal refresh below already skips any symbol that
-    // doesn't return valid data, so it doubles as validation.
+    // rate limit. If the symbol turns out invalid or the fetch fails, it now
+    // always shows up as "unavailable" with a remove (×) button rather than
+    // silently vanishing or getting stuck untracked-but-invisible.
     STOCKS.push({ symbol, label: symbol, tv: symbol });
     document.getElementById('stockSearchInput').value = '';
-    const beforeCount = STOCKS.length - 1;
     await connectMarkets();
-    if(stocksLastFetchOk && (!lastGoodStocksRows || !lastGoodStocksRows.includes('>' + symbol + '<'))){
-      STOCKS.length = beforeCount; // fetch succeeded but this symbol genuinely wasn't in it
-      showStockMsg(symbol + ' not found or unavailable.');
-      await connectMarkets();
-    } else if(!stocksLastFetchOk){
-      showStockMsg('Could not confirm ' + symbol + ' right now (Twelve Data may be rate-limited) — it\u2019s been added, try Refresh shortly.');
+    if(!stocksLastFetchOk){
+      showStockMsg('Could not confirm ' + symbol + ' right now (Twelve Data may be rate-limited) — added anyway, try Refresh shortly.');
     }
     btn.textContent = 'Add';
     btn.disabled = false;
@@ -1643,6 +1647,15 @@
   });
 
   grid.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('.stock-remove-btn');
+    if(removeBtn){
+      e.stopPropagation();
+      const sym = removeBtn.dataset.removeSymbol;
+      const idx = STOCKS.findIndex(s => s.symbol === sym);
+      if(idx > -1) STOCKS.splice(idx, 1);
+      connectMarkets();
+      return;
+    }
     const row = e.target.closest('.coin-row');
     if(!row || !row.dataset.tv) return;
     openChart(row.dataset.tv, row.dataset.title);
