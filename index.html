@@ -258,6 +258,33 @@
   .transit-conn{ padding:12px 0; border-bottom:1px solid var(--line); cursor:pointer; transition:opacity .15s ease; }
   .transit-conn:hover{ opacity:.8; }
   .transit-conn:last-child{ border-bottom:none; }
+
+  .task-input-row{ display:flex; gap:8px; margin:2px 0 8px; }
+  .task-item{
+    display:flex; align-items:center; gap:10px;
+    width:100%; padding:7px 0; border-bottom:1px solid var(--line);
+  }
+  .task-item:last-child{ border-bottom:none; }
+  .task-check{
+    width:16px; height:16px; flex-shrink:0; border-radius:3px;
+    border:1px solid var(--line); background:var(--bg);
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    color:var(--rose-bright); font-size:11px; line-height:1;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .task-check:hover{ border-color:var(--rose-bright); }
+  .task-item.done .task-check{ background:var(--rose); border-color:var(--rose); color:#fff; }
+  .task-main{ flex:1; min-width:0; }
+  .task-text{ font-size:13px; color:var(--text); word-break:break-word; }
+  .task-item.done .task-text{ color:var(--text-dim); text-decoration:line-through; }
+  .task-deadline{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--text-dim); margin-top:2px; }
+  .task-deadline.overdue{ color:var(--rose-bright); }
+  .task-remove{
+    background:none; border:none; color:var(--text-dim); cursor:pointer;
+    font-size:15px; line-height:1; padding:0 2px; flex-shrink:0;
+    transition:color .15s ease;
+  }
+  .task-remove:hover{ color:var(--rose-bright); }
   .transit-sbb-link:hover{ text-decoration:underline; }
   .transit-mode-toggle{ display:flex; gap:6px; margin-bottom:2px; }
   .transit-mode-btn{
@@ -707,7 +734,7 @@
     markets: { w:4,  h:5 },
     news:    { w:4,  h:5 },
     mastering:{ w:4, h:5 },
-    notes:   { w:4,  h:5 },
+    tasks:   { w:4,  h:5 },
     transit: { w:6,  h:5 }
   };
 
@@ -745,18 +772,22 @@
     grid.appendChild(wrapAsGridItem(m.id, tile));
   });
 
-  const notes = document.createElement('div');
-  notes.className = 'tile';
-  notes.dataset.module = 'notes';
-  notes.innerHTML = `
+  const tasks = document.createElement('div');
+  tasks.className = 'tile';
+  tasks.dataset.module = 'tasks';
+  tasks.innerHTML = `
     <div class="tile-head">
-      <div class="tile-name">NOTES</div>
+      <div class="tile-name">TASKS</div>
       <div class="tile-head-right"><div class="tile-idx">07</div></div>
     </div>
-    <textarea id="notesArea" placeholder="Jot something down…" style="width:100%; flex:1; min-height:0; resize:none; background:var(--bg); border:1px solid var(--line); border-radius:2px; color:var(--text); padding:10px 12px; font-family:'Space Grotesk',sans-serif; font-size:13px; line-height:1.5; outline:none;"></textarea>
-    <button class="tile-cta" id="notesClearBtn">Clear</button>
+    <div class="task-input-row">
+      <input id="taskInput" type="text" class="transit-input" placeholder="New task…" style="flex:1; min-width:0;">
+      <input id="taskDeadline" type="date" class="transit-input" style="width:130px;">
+      <button class="tile-cta" id="taskAddBtn" style="margin-top:0;">Add</button>
+    </div>
+    <div id="taskList" class="tile-body" style="gap:0;"></div>
   `;
-  grid.appendChild(wrapAsGridItem('notes', notes));
+  grid.appendChild(wrapAsGridItem('tasks', tasks));
 
   // ---- GridStack init: drag, resize, and persisted layout ----
   const gridStack = GridStack.init({
@@ -2169,22 +2200,80 @@
     if(p) openProjectModal(p);
   });
 
-  // ---- Notes (localStorage only, no backend) ----
-  const notesArea = document.getElementById('notesArea');
-  notesArea.value = localStorage.getItem('quick_notes') || '';
-  let notesSaveTimer = null;
-  notesArea.addEventListener('input', () => {
-    clearTimeout(notesSaveTimer);
-    notesSaveTimer = setTimeout(() => {
-      localStorage.setItem('quick_notes', notesArea.value);
-    }, 400);
+  // ---- Tasks (localStorage only, no backend) ----
+  let taskList = JSON.parse(localStorage.getItem('quick_tasks') || '[]');
+
+  function saveTasks(){
+    localStorage.setItem('quick_tasks', JSON.stringify(taskList));
+  }
+
+  function renderTasks(){
+    const el = document.getElementById('taskList');
+    if(!taskList.length){
+      el.innerHTML = '<div class="tile-hint">Nothing on the list.</div>';
+      return;
+    }
+    const todayStr = new Date().toISOString().slice(0, 10);
+    // Sort: undone first (soonest deadline first, no-deadline last), then done items at the bottom.
+    const sorted = [...taskList].sort((a, b) => {
+      if(a.done !== b.done) return a.done ? 1 : -1;
+      if(!a.deadline && !b.deadline) return 0;
+      if(!a.deadline) return 1;
+      if(!b.deadline) return -1;
+      return a.deadline.localeCompare(b.deadline);
+    });
+    el.innerHTML = sorted.map(t => {
+      const overdue = t.deadline && !t.done && t.deadline < todayStr;
+      const deadlineLabel = t.deadline
+        ? new Date(t.deadline + 'T00:00:00').toLocaleDateString([], { month:'short', day:'numeric' }) + (overdue ? ' · overdue' : '')
+        : '';
+      return `<div class="task-item ${t.done ? 'done' : ''}" data-task-id="${t.id}">
+        <button class="task-check" data-toggle-id="${t.id}">${t.done ? '✓' : ''}</button>
+        <div class="task-main">
+          <div class="task-text">${t.text}</div>
+          ${deadlineLabel ? `<div class="task-deadline ${overdue ? 'overdue' : ''}">${deadlineLabel}</div>` : ''}
+        </div>
+        <button class="task-remove" data-remove-id="${t.id}" title="Delete">×</button>
+      </div>`;
+    }).join('');
+  }
+
+  function addTask(){
+    const input = document.getElementById('taskInput');
+    const deadlineInput = document.getElementById('taskDeadline');
+    const text = input.value.trim();
+    if(!text) return;
+    taskList.push({
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+      text,
+      deadline: deadlineInput.value || null,
+      done: false
+    });
+    input.value = '';
+    deadlineInput.value = '';
+    saveTasks();
+    renderTasks();
+  }
+
+  document.getElementById('taskAddBtn').addEventListener('click', (e) => { e.stopPropagation(); addTask(); });
+  document.getElementById('taskInput').addEventListener('keydown', (e) => { if(e.key === 'Enter') addTask(); });
+
+  document.getElementById('taskList').addEventListener('click', (e) => {
+    const toggleBtn = e.target.closest('[data-toggle-id]');
+    if(toggleBtn){
+      const t = taskList.find(x => x.id === toggleBtn.dataset.toggleId);
+      if(t){ t.done = !t.done; saveTasks(); renderTasks(); }
+      return;
+    }
+    const removeBtn = e.target.closest('[data-remove-id]');
+    if(removeBtn){
+      taskList = taskList.filter(x => x.id !== removeBtn.dataset.removeId);
+      saveTasks();
+      renderTasks();
+    }
   });
-  document.getElementById('notesClearBtn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    notesArea.value = '';
-    localStorage.removeItem('quick_notes');
-    notesArea.focus({ preventScroll: true });
-  });
+
+  renderTasks();
 
   // ---- Transit (transport.opendata.ch — Swiss public transport, no key needed) ----
   function augmentTransitTile(){
