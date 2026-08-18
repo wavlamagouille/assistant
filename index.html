@@ -1317,6 +1317,9 @@
   connectWeather();
 
   // ---- markets module: crypto (CoinGecko, no key) + stocks/indices/commodities (Twelve Data, free key) ----
+  let lastGoodCryptoRows = '';
+  let lastGoodStocksRows = '';
+  let stocksLastFetchOk = false;
   const COINS = ['bitcoin', 'ethereum', 'solana'];
   const COIN_LABEL = { bitcoin:'BTC', ethereum:'ETH', solana:'SOL' };
   const COIN_SYMBOL = { bitcoin:'BINANCE:BTCUSDT', ethereum:'BINANCE:ETHUSDT', solana:'BINANCE:SOLUSDT' };
@@ -1401,10 +1404,12 @@
       if(!res.ok) throw new Error('HTTP '+res.status);
       const data = await res.json();
       cryptoHTML = data.map(renderCoinRow).join('');
+      lastGoodCryptoRows = cryptoHTML;
       ok = true;
     }catch(err){
       console.error('crypto fetch failed', err);
-      cryptoHTML = `<div class="tile-hint">Crypto prices failed to load.</div>`;
+      cryptoHTML = lastGoodCryptoRows || `<div class="tile-hint">Crypto prices failed to load.</div>`;
+      ok = !!lastGoodCryptoRows;
     }
 
     if(TWELVE_DATA_KEY){
@@ -1414,34 +1419,32 @@
         const res = await fetch(url);
         const data = await res.json();
 
-        // Detect a batch-level failure (e.g. one bad symbol, or a plan/limit
-        // restriction) rather than assuming the expected per-symbol shape —
-        // a malformed/error response here used to silently wipe out every
-        // stock instead of just the one that actually failed.
         const looksLikeBatchError = STOCKS.length > 1 &&
           (data.status === 'error' || data.code || !STOCKS.some(s => data[s.symbol]));
 
-        let rows;
         if(looksLikeBatchError){
-          console.warn('markets: batch quote looked malformed, falling back to individual requests', data);
-          const results = await Promise.allSettled(STOCKS.map(async asset => {
-            const r = await fetch(`https://api.twelvedata.com/quote?symbol=${encodeURIComponent(asset.symbol)}&apikey=${TWELVE_DATA_KEY}`);
-            const q = await r.json();
-            if(!q || q.status === 'error' || q.close == null) return '';
-            return renderStockRow(asset, q);
-          }));
-          rows = results.map(r => r.status === 'fulfilled' ? r.value : '').join('');
+          // Don't retry with a burst of individual requests here — if this was
+          // caused by hitting the free-tier rate limit, firing more requests
+          // right now would likely just fail too. Keep showing whatever
+          // rendered successfully last time instead of blanking it out.
+          console.warn('markets: batch quote failed, keeping last good data', data);
+          const reason = data.message || 'Twelve Data request failed (possibly rate-limited).';
+          stocksHTML = sectionLabel('Stocks & more') + (lastGoodStocksRows || `<div class="tile-hint" style="color:var(--rose-bright);">${reason}</div>`);
+          stocksLastFetchOk = false;
         } else {
-          rows = STOCKS.map(asset => {
+          const rows = STOCKS.map(asset => {
             const q = STOCKS.length > 1 ? data[asset.symbol] : data;
             if(!q || q.status === 'error' || q.close == null) return '';
             return renderStockRow(asset, q);
           }).join('');
+          lastGoodStocksRows = rows;
+          stocksHTML = sectionLabel('Stocks & more') + rows;
+          stocksLastFetchOk = true;
         }
-        stocksHTML = sectionLabel('Stocks & more') + rows;
       }catch(err){
         console.error('stocks fetch failed', err);
-        stocksHTML = sectionLabel('Stocks & more') + `<div class="tile-hint">Stock/index prices failed to load.</div>`;
+        stocksHTML = sectionLabel('Stocks & more') + (lastGoodStocksRows || `<div class="tile-hint">Stock/index prices failed to load.</div>`);
+        stocksLastFetchOk = false;
       }
     } else {
       stocksHTML = sectionLabel('Stocks & more') + `<div class="tile-hint">Add a free Twelve Data API key (twelvedata.com/pricing, no card needed) to enable S&amp;P 500, gold, silver &amp; stocks — set TWELVE_DATA_KEY near the top of the markets code.</div>`;
@@ -1487,24 +1490,23 @@
 
     btn.textContent = '…';
     btn.disabled = true;
-    let found = false;
-    try{
-      const res = await fetch(`https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbol)}&apikey=${TWELVE_DATA_KEY}`);
-      const q = await res.json();
-      if(!res.ok || q.status === 'error' || q.close == null){
-        showStockMsg(q.message || (symbol + ' not found.'));
-      } else {
-        STOCKS.push({ symbol, label: symbol, tv: symbol });
-        document.getElementById('stockSearchInput').value = '';
-        found = true;
-      }
-    }catch(err){
-      showStockMsg('Search failed: ' + (err && err.message ? err.message : 'unknown error') + '.');
-      console.error('stock search failed', err);
+    // No separate validation request here — that used to mean two Twelve Data
+    // calls per add (validate, then refresh), which could trip the free-tier
+    // rate limit. The normal refresh below already skips any symbol that
+    // doesn't return valid data, so it doubles as validation.
+    STOCKS.push({ symbol, label: symbol, tv: symbol });
+    document.getElementById('stockSearchInput').value = '';
+    const beforeCount = STOCKS.length - 1;
+    await connectMarkets();
+    if(stocksLastFetchOk && (!lastGoodStocksRows || !lastGoodStocksRows.includes('>' + symbol + '<'))){
+      STOCKS.length = beforeCount; // fetch succeeded but this symbol genuinely wasn't in it
+      showStockMsg(symbol + ' not found or unavailable.');
+      await connectMarkets();
+    } else if(!stocksLastFetchOk){
+      showStockMsg('Could not confirm ' + symbol + ' right now (Twelve Data may be rate-limited) — it\u2019s been added, try Refresh shortly.');
     }
     btn.textContent = 'Add';
     btn.disabled = false;
-    if(found) await connectMarkets();
   }
 
   function augmentMarketsTile(){
