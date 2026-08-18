@@ -2065,6 +2065,10 @@
           <button class="transit-mode-btn" data-mode="flights">Flights</button>
           <button class="transit-mode-btn" data-mode="uber">Uber</button>
         </div>
+        <div id="transitTripTypeRow" class="transit-mode-toggle" style="display:none;">
+          <button class="transit-mode-btn active" data-triptype="oneway">One-way</button>
+          <button class="transit-mode-btn" data-triptype="roundtrip">Round-trip</button>
+        </div>
         <div style="position:relative;">
           <input id="transitFrom" type="text" class="transit-input" style="width:100%; box-sizing:border-box;" placeholder="From…" value="Rolle" autocomplete="off">
           <div id="transitFromSuggestions" class="city-suggestions"></div>
@@ -2077,12 +2081,14 @@
           <input id="transitDate" type="date" class="transit-input" style="flex:1; min-width:0;" value="${todayStr}">
           <input id="transitTime" type="time" class="transit-input" style="flex:1; min-width:0;" value="${timeStr}">
         </div>
+        <input id="transitReturnDate" type="date" class="transit-input" style="display:none;" value="${todayStr}">
         <button class="tile-cta" id="transitSearchBtn" style="margin-top:2px;">Search</button>
         <div id="transitMsg" class="tile-hint" style="display:none; color:var(--rose-bright);"></div>
       </div>
     `;
 
     let transitMode = 'transit';
+    let tripType = 'oneway';
     document.querySelectorAll('#transitModeToggle .transit-mode-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -2093,24 +2099,41 @@
         const searchBtn = document.getElementById('transitSearchBtn');
         const fromInput = document.getElementById('transitFrom');
         const toInput = document.getElementById('transitTo');
+        const tripTypeRow = document.getElementById('transitTripTypeRow');
+        const returnDateInput = document.getElementById('transitReturnDate');
         if(transitMode === 'transit'){
           dtRow.style.display = 'flex';
           timeInput.style.display = '';
           fromInput.placeholder = 'From…';
           toInput.placeholder = 'To…';
           searchBtn.textContent = 'Search';
+          tripTypeRow.style.display = 'none';
+          returnDateInput.style.display = 'none';
         } else if(transitMode === 'flights'){
           dtRow.style.display = 'flex';
           timeInput.style.display = 'none';
           fromInput.placeholder = 'Origin city or airport…';
           toInput.placeholder = 'Destination city or airport…';
           searchBtn.textContent = 'Search on Google Flights';
+          tripTypeRow.style.display = 'flex';
+          returnDateInput.style.display = tripType === 'roundtrip' ? 'block' : 'none';
         } else if(transitMode === 'uber'){
           dtRow.style.display = 'none';
           fromInput.placeholder = 'Pickup address…';
           toInput.placeholder = 'Drop-off address…';
           searchBtn.textContent = 'Open in Uber';
+          tripTypeRow.style.display = 'none';
+          returnDateInput.style.display = 'none';
         }
+      });
+    });
+
+    document.querySelectorAll('#transitTripTypeRow .transit-mode-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        tripType = btn.dataset.triptype;
+        document.querySelectorAll('#transitTripTypeRow .transit-mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+        document.getElementById('transitReturnDate').style.display = tripType === 'roundtrip' ? 'block' : 'none';
       });
     });
 
@@ -2178,7 +2201,13 @@
 
       if(transitMode === 'flights'){
         const dateStr = date || todayStr;
-        const q = `Flights from ${from} to ${to} on ${dateStr}`;
+        let q = `Flights from ${from} to ${to} on ${dateStr}`;
+        if(tripType === 'roundtrip'){
+          const returnDate = document.getElementById('transitReturnDate').value;
+          if(returnDate) q += ` returning ${returnDate}`;
+        } else {
+          q += ' one way';
+        }
         window.open('https://www.google.com/travel/flights?q=' + encodeURIComponent(q), '_blank', 'noopener');
         return;
       }
