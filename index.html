@@ -775,7 +775,7 @@
     timer:   { w:4,  h:4 },
     qr:      { w:4,  h:5 },
     taptempo:{ w:4,  h:4 },
-    analyzer:{ w:9,  h:10 }
+    analyzer:{ w:9,  h:12 }
   };
 
   function wrapAsGridItem(id, tileEl){
@@ -920,7 +920,8 @@
     <div class="tile-hint" style="margin-bottom:8px;">Captures audio from a tab or your screen — pick "share audio" when prompted. Nothing is recorded or sent anywhere.</div>
     <button class="tile-cta" id="analyzerToggleBtn" style="margin-bottom:10px;">Start</button>
     <div style="width:100%; display:flex; flex-direction:column; gap:10px; flex:1; min-height:0;">
-      <canvas id="analyzerSpectrum" style="width:100%; height:120px; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
+      <canvas id="analyzerWaveform" style="width:100%; height:140px; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
+      <canvas id="analyzerSpectrum" style="width:100%; height:90px; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
       <div style="display:flex; gap:10px; flex:1; min-height:220px;">
         <canvas id="analyzerMeters" style="width:70px; height:100%; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
         <canvas id="analyzerGonio" style="flex:1; height:100%; background:#0f0f11; border:1px solid var(--line); border-radius:3px;"></canvas>
@@ -2901,11 +2902,65 @@
   // ---- Live Analyzer (Web Audio API, local only - nothing recorded/sent) ----
   let analyzerStream = null, analyzerCtx = null, analyzerAnimFrame = null;
   let analyzerL = null, analyzerR = null;
+  let waveformHistory = [];
+  const WAVEFORM_MAX_POINTS = 400;
   let peakHoldL = 0, peakHoldR = 0, peakHoldDecay = 0.005;
 
   function dbFromPeak(peak){
     if(peak <= 0.0001) return -60;
     return Math.max(-60, 20 * Math.log10(peak));
+  }
+
+  function drawWaveform(){
+    const canvas = document.getElementById('analyzerWaveform');
+    const ctx2d = canvas.getContext('2d');
+    const w = canvas.width = canvas.clientWidth;
+    const h = canvas.height = canvas.clientHeight;
+    ctx2d.clearRect(0, 0, w, h);
+    if(!analyzerL || !analyzerR) return;
+
+    // Capture this frame's amplitude + how much of it is bass/mid/treble,
+    // so the waveform can be colored by frequency content like a CDJ deck —
+    // not just plain amplitude.
+    const bufL = new Float32Array(analyzerL.fftSize);
+    const bufR = new Float32Array(analyzerR.fftSize);
+    analyzerL.getFloatTimeDomainData(bufL);
+    analyzerR.getFloatTimeDomainData(bufR);
+    let peak = 0;
+    for(let i = 0; i < bufL.length; i++){
+      const v = Math.max(Math.abs(bufL[i]), Math.abs(bufR[i]));
+      if(v > peak) peak = v;
+    }
+
+    const freqData = new Uint8Array(analyzerL.frequencyBinCount);
+    analyzerL.getByteFrequencyData(freqData);
+    const nyquist = analyzerCtx.sampleRate / 2;
+    const binHz = nyquist / freqData.length;
+    let bass = 0, bassN = 0, mid = 0, midN = 0, treble = 0, trebleN = 0;
+    for(let i = 0; i < freqData.length; i++){
+      const freq = i * binHz;
+      if(freq < 250){ bass += freqData[i]; bassN++; }
+      else if(freq < 4000){ mid += freqData[i]; midN++; }
+      else { treble += freqData[i]; trebleN++; }
+    }
+    const bassE = bassN ? (bass/bassN)/255 : 0;
+    const midE = midN ? (mid/midN)/255 : 0;
+    const trebleE = trebleN ? (treble/trebleN)/255 : 0;
+
+    waveformHistory.push({ peak, bassE, midE, trebleE });
+    if(waveformHistory.length > WAVEFORM_MAX_POINTS) waveformHistory.shift();
+
+    const colWidth = w / WAVEFORM_MAX_POINTS;
+    const midY = h / 2;
+    waveformHistory.forEach((pt, i) => {
+      const x = i * colWidth;
+      const barH = Math.max(1, pt.peak * h * 0.95);
+      const r = Math.min(255, 60 + pt.bassE * 255);
+      const g = Math.min(255, 60 + pt.midE * 255);
+      const b = Math.min(255, 80 + pt.trebleE * 255);
+      ctx2d.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+      ctx2d.fillRect(x, midY - barH/2, Math.max(1, colWidth - 0.5), barH);
+    });
   }
 
   function drawSpectrum(){
@@ -3068,6 +3123,7 @@
   }
 
   function analyzerLoop(){
+    drawWaveform();
     drawSpectrum();
     drawMeters();
     drawGonio();
@@ -3077,6 +3133,7 @@
 
   async function startAnalyzer(){
     const btn = document.getElementById('analyzerToggleBtn');
+    waveformHistory = [];
     try{
       analyzerStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       // Video is only requested because Chrome requires it for getDisplayMedia —
@@ -3118,7 +3175,7 @@
     analyzerCtx = null;
     analyzerL = null; analyzerR = null;
     document.getElementById('analyzerToggleBtn').textContent = 'Start';
-    ['analyzerSpectrum', 'analyzerMeters', 'analyzerGonio', 'analyzerCorrelation'].forEach(id => {
+    ['analyzerWaveform', 'analyzerSpectrum', 'analyzerMeters', 'analyzerGonio', 'analyzerCorrelation'].forEach(id => {
       const c = document.getElementById(id);
       const ctx2d = c.getContext('2d');
       ctx2d.clearRect(0, 0, c.width, c.height);
