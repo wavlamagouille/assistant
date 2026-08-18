@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack.min.css">
 <script src="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack-all.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <style>
   :root{
     --bg: #18181b;
@@ -771,7 +772,8 @@
     tasks:   { w:4,  h:5 },
     transit: { w:6,  h:5 },
     currency:{ w:4,  h:4 },
-    timer:   { w:4,  h:4 }
+    timer:   { w:4,  h:4 },
+    qr:      { w:4,  h:5 }
   };
 
   function wrapAsGridItem(id, tileEl){
@@ -869,6 +871,24 @@
     </div>
   `;
   grid.appendChild(wrapAsGridItem('timer', timerTile));
+
+  const qrTile = document.createElement('div');
+  qrTile.className = 'tile';
+  qrTile.dataset.module = 'qr';
+  qrTile.innerHTML = `
+    <div class="tile-head">
+      <div class="tile-name">QR CODE</div>
+      <div class="tile-head-right"><div class="tile-idx">11</div></div>
+    </div>
+    <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:10px; flex:1;">
+      <input id="qrInput" type="text" class="transit-input" placeholder="Paste a link or text…" style="width:100%; box-sizing:border-box;">
+      <div id="qrCanvasWrap" style="background:#fff; padding:10px; border-radius:3px; display:flex; align-items:center; justify-content:center; min-height:160px; width:160px;">
+        <span class="tile-hint" style="color:#999;">Type something above</span>
+      </div>
+      <a id="qrDownloadLink" download="qrcode.png" style="display:none; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--rose-bright); text-decoration:none;">Download PNG</a>
+    </div>
+  `;
+  grid.appendChild(wrapAsGridItem('qr', qrTile));
 
   // ---- GridStack init: drag, resize, and persisted layout ----
   const gridStack = GridStack.init({
@@ -2775,6 +2795,39 @@
     timerRemaining = timerTotalSeconds;
     document.getElementById('timerDisplay').style.color = '';
     updateTimerDisplay();
+  });
+
+  // ---- QR code generator (fully client-side, nothing ever sent anywhere) ----
+  let qrDebounce = null;
+  function generateQR(){
+    const text = document.getElementById('qrInput').value.trim();
+    const wrap = document.getElementById('qrCanvasWrap');
+    const downloadLink = document.getElementById('qrDownloadLink');
+    if(!text){
+      wrap.innerHTML = '<span class="tile-hint" style="color:#999;">Type something above</span>';
+      downloadLink.style.display = 'none';
+      return;
+    }
+    if(!window.QRCode){
+      wrap.innerHTML = '<span class="tile-hint" style="color:#c00;">QR library failed to load.</span>';
+      return;
+    }
+    wrap.innerHTML = '<canvas id="qrCanvas"></canvas>';
+    QRCode.toCanvas(document.getElementById('qrCanvas'), text, { width: 160, margin: 1 }, (err) => {
+      if(err){
+        console.error('QR generation failed', err);
+        wrap.innerHTML = '<span class="tile-hint" style="color:#c00;">Failed to generate.</span>';
+        downloadLink.style.display = 'none';
+        return;
+      }
+      const canvas = document.getElementById('qrCanvas');
+      downloadLink.href = canvas.toDataURL('image/png');
+      downloadLink.style.display = 'block';
+    });
+  }
+  document.getElementById('qrInput').addEventListener('input', () => {
+    clearTimeout(qrDebounce);
+    qrDebounce = setTimeout(generateQR, 300);
   });
 </script>
 
