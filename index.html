@@ -944,6 +944,7 @@
     tasks:   { w:4,  h:5 },
     transit: { w:6,  h:5 },
     currency:{ w:4,  h:4 },
+    unitconv:{ w:4,  h:5 },
     timer:   { w:4,  h:4 },
     taptempo:{ w:4,  h:4 }
   };
@@ -1022,6 +1023,32 @@
     </div>
   `;
   grid.appendChild(wrapAsGridItem('currency', currencyTile));
+
+  const unitConvTile = document.createElement('div');
+  unitConvTile.className = 'tile';
+  unitConvTile.dataset.module = 'unitconv';
+  unitConvTile.innerHTML = `
+    <div class="tile-head">
+      <div class="tile-name">UNIT CONVERTER</div>
+      <div class="tile-head-right"><div class="tile-idx">14</div></div>
+    </div>
+    <div style="width:100%; display:flex; flex-direction:column; gap:8px;">
+      <div class="transit-mode-toggle" id="unitCatToggle">
+        <button class="transit-mode-btn active" data-cat="length">Length</button>
+        <button class="transit-mode-btn" data-cat="weight">Weight</button>
+        <button class="transit-mode-btn" data-cat="temp">Temp</button>
+        <button class="transit-mode-btn" data-cat="volume">Volume</button>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <input id="unitAmount" type="number" class="transit-input" value="1" style="flex:1; min-width:0;">
+        <select id="unitFrom" class="transit-input" style="width:80px;"></select>
+        <span style="align-self:center; color:var(--text-dim);">→</span>
+        <select id="unitTo" class="transit-input" style="width:80px;"></select>
+      </div>
+      <div id="unitResult" style="font-family:'JetBrains Mono',monospace; font-size:28px; color:var(--text);">—</div>
+    </div>
+  `;
+  grid.appendChild(wrapAsGridItem('unitconv', unitConvTile));
 
   const timerTile = document.createElement('div');
   timerTile.className = 'tile';
@@ -3362,6 +3389,83 @@
   fromSelect.addEventListener('change', convertCurrency);
   toSelect.addEventListener('change', convertCurrency);
   convertCurrency();
+
+  // ---- Unit converter (pure client-side, no API needed) ----
+  const UNIT_CATEGORIES = {
+    length: {
+      units: { mm:0.001, cm:0.01, m:1, km:1000, in:0.0254, ft:0.3048, yd:0.9144, mi:1609.344 },
+      default: ['m', 'ft']
+    },
+    weight: {
+      units: { mg:0.000001, g:0.001, kg:1, t:1000, oz:0.0283495, lb:0.453592 },
+      default: ['kg', 'lb']
+    },
+    volume: {
+      units: { ml:0.001, l:1, 'gal(US)':3.78541, 'qt(US)':0.946353, 'pt(US)':0.473176, 'fl oz':0.0295735, cup:0.24 },
+      default: ['l', 'gal(US)']
+    },
+    temp: {
+      units: { '°C':null, '°F':null, K:null }, // handled specially below, not a simple factor
+      default: ['°C', '°F']
+    }
+  };
+  let unitCategory = 'length';
+
+  function celsiusToUnit(c, unit){
+    if(unit === '°C') return c;
+    if(unit === '°F') return c * 9/5 + 32;
+    if(unit === 'K') return c + 273.15;
+  }
+  function unitToCelsius(v, unit){
+    if(unit === '°C') return v;
+    if(unit === '°F') return (v - 32) * 5/9;
+    if(unit === 'K') return v - 273.15;
+  }
+
+  function populateUnitSelects(){
+    const cat = UNIT_CATEGORIES[unitCategory];
+    const units = Object.keys(cat.units);
+    const fromSel = document.getElementById('unitFrom');
+    const toSel = document.getElementById('unitTo');
+    fromSel.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+    toSel.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+    fromSel.value = cat.default[0];
+    toSel.value = cat.default[1];
+  }
+
+  function convertUnit(){
+    const amount = parseFloat(document.getElementById('unitAmount').value);
+    const from = document.getElementById('unitFrom').value;
+    const to = document.getElementById('unitTo').value;
+    const resultEl = document.getElementById('unitResult');
+    if(isNaN(amount)){ resultEl.textContent = '—'; return; }
+
+    let result;
+    if(unitCategory === 'temp'){
+      result = celsiusToUnit(unitToCelsius(amount, from), to);
+    } else {
+      const cat = UNIT_CATEGORIES[unitCategory];
+      const base = amount * cat.units[from];
+      result = base / cat.units[to];
+    }
+    resultEl.textContent = result.toLocaleString('en-US', { maximumFractionDigits:4 }) + ' ' + to;
+  }
+
+  document.querySelectorAll('#unitCatToggle .transit-mode-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      unitCategory = btn.dataset.cat;
+      document.querySelectorAll('#unitCatToggle .transit-mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+      populateUnitSelects();
+      convertUnit();
+    });
+  });
+  ['unitAmount'].forEach(id => document.getElementById(id).addEventListener('input', convertUnit));
+  document.getElementById('unitFrom').addEventListener('change', convertUnit);
+  document.getElementById('unitTo').addEventListener('change', convertUnit);
+
+  populateUnitSelects();
+  convertUnit();
 
   // ---- Timer (pure client-side, no API) ----
   let timerTotalSeconds = 25 * 60;
