@@ -416,7 +416,7 @@
   .cal-header{ display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
   .cal-nav-btn{ background:none; border:1px solid var(--line); color:var(--text-mid); width:24px; height:24px; border-radius:3px; cursor:pointer; font-size:14px; line-height:1; }
   .cal-nav-btn:hover{ border-color:var(--rose-bright); color:var(--rose-bright); }
-  .cal-month-label{ font-family:'Bebas Neue', sans-serif; font-size:16px; letter-spacing:.04em; color:var(--text); }
+  .cal-month-label{ font-family:'Bebas Neue', sans-serif; font-size:15px; letter-spacing:.04em; color:var(--text); }
   .cal-grid{ display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:3px; width:100%; margin-top:8px; box-sizing:border-box; }
   .cal-dow{ text-align:center; font-family:'JetBrains Mono', monospace; font-size:9px; color:var(--text-dim); text-transform:uppercase; padding-bottom:4px; }
   .cal-day{
@@ -454,7 +454,7 @@
   .precip-outlook{ display:flex; align-items:flex-end; gap:3px; height:56px; }
   .precip-bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:3px; }
   .precip-bar{ width:100%; max-width:14px; background:var(--rose-bright); opacity:.75; border-radius:1px 1px 0 0; min-height:2px; }
-  .precip-bar-hour{ font-family:'JetBrains Mono', monospace; font-size:8px; color:var(--text-dim); }
+  .precip-bar-hour{ font-family:'JetBrains Mono', monospace; font-size:9px; color:var(--text-dim); }
   .radar-placeholder{
     display:flex; align-items:center; justify-content:center;
     height:100%; width:100%;
@@ -703,7 +703,7 @@
   .chat-msg.assistant li{ margin-bottom:3px; }
   .chat-msg.assistant h1, .chat-msg.assistant h2, .chat-msg.assistant h3{
     font-family:'Bebas Neue', sans-serif; letter-spacing:.03em; color:var(--text);
-    margin:10px 0 6px; font-size:16px;
+    margin:10px 0 6px; font-size:15px;
   }
   .chat-msg.assistant h1:first-child, .chat-msg.assistant h2:first-child, .chat-msg.assistant h3:first-child{ margin-top:0; }
   .chat-msg.assistant code{
@@ -782,7 +782,7 @@
   }
   .modal-title{
     font-family:'Bebas Neue', sans-serif;
-    font-size:20px;
+    font-size:19px;
     letter-spacing:.04em;
   }
   .modal-close{
@@ -1228,7 +1228,7 @@
       <div class="tile-head-right"><div class="tile-idx">12</div></div>
     </div>
     <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; justify-content:center;">
-      <div id="tapBpm" style="font-family:'JetBrains Mono',monospace; font-size:48px; color:var(--text);">—</div>
+      <div id="tapBpm" style="font-family:'JetBrains Mono',monospace; font-size:44px; color:var(--text);">—</div>
       <div class="tile-hint" style="color:var(--text-dim);">BPM</div>
       <button class="tile-cta" id="tapBtn" style="margin-top:10px; padding:14px 40px; font-size:13px;">TAP (or press space)</button>
       <button class="tile-cta" id="tapResetBtn" style="margin-top:4px;">Reset</button>
@@ -1417,7 +1417,7 @@
         <div style="display:flex; align-items:center; gap:16px;">
           <span style="display:inline-flex; width:44px; height:44px; flex-shrink:0;">${iconSvg}</span>
           <div style="display:flex; align-items:baseline; gap:10px;">
-            <span style="font-family:'JetBrains Mono',monospace; font-size:34px; color:var(--text);">${Math.round(cur.temperature_2m)}°</span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:44px; color:var(--text);">${Math.round(cur.temperature_2m)}°</span>
             <span style="font-size:13px; color:var(--text-mid);">feels like ${Math.round(cur.apparent_temperature)}°</span>
           </div>
         </div>
