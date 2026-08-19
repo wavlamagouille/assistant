@@ -1397,6 +1397,70 @@
     right.appendChild(btn);
   }
 
+  let weatherDailyData = null;
+  let weatherSelectedDay = 0;
+
+  function renderWeatherDaySelectorHTML(){
+    const days = weatherDailyData.daily.time;
+    const today = new Date().toDateString();
+    return `<div id="weatherDaySelector" style="display:flex; gap:6px; width:100%; margin-top:2px;">
+      ${days.map((dateStr, i) => {
+        const d = new Date(dateStr + 'T00:00:00');
+        const label = d.toDateString() === today ? 'Today' : d.toLocaleDateString([], { weekday:'short' });
+        return `<button class="transit-mode-btn weather-day-btn ${i === weatherSelectedDay ? 'active' : ''}" data-day="${i}" style="flex:1; padding:6px 4px;">${label}</button>`;
+      }).join('')}
+    </div>`;
+  }
+
+  function renderWeatherDay(bodyEl, dayIndex){
+    const data = weatherDailyData;
+    const daily = data.daily;
+    const isToday = dayIndex === 0;
+    const weatherCode = isToday ? data.current.weather_code : daily.weather_code[dayIndex];
+    const desc = WMO[weatherCode] || 'Unknown conditions';
+    const iconKey = WMO_ICON[weatherCode] || 'cloud';
+    const iconSvg = SVG_ICONS[iconKey];
+    const tmax = Math.round(daily.temperature_2m_max[dayIndex]);
+    const tmin = Math.round(daily.temperature_2m_min[dayIndex]);
+    const rainChance = daily.precipitation_probability_max ? daily.precipitation_probability_max[dayIndex] : null;
+    const sunrise = daily.sunrise ? new Date(daily.sunrise[dayIndex]).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : null;
+    const sunset = daily.sunset ? new Date(daily.sunset[dayIndex]).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : null;
+
+    const topLine = isToday
+      ? `<div style="display:flex; align-items:center; gap:16px;">
+          <span style="display:inline-flex; width:44px; height:44px; flex-shrink:0;">${iconSvg}</span>
+          <div style="display:flex; align-items:baseline; gap:10px;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:44px; color:var(--text);">${Math.round(data.current.temperature_2m)}°</span>
+            <span style="font-size:13px; color:var(--text-mid);">feels like ${Math.round(data.current.apparent_temperature)}°</span>
+          </div>
+        </div>
+        <div class="tile-hint">${desc} · wind ${Math.round(data.current.wind_speed_10m)} km/h</div>`
+      : `<div style="display:flex; align-items:center; gap:16px;">
+          <span style="display:inline-flex; width:44px; height:44px; flex-shrink:0;">${iconSvg}</span>
+          <div style="display:flex; align-items:baseline; gap:10px;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:44px; color:var(--text);">${tmax}°</span>
+            <span style="font-size:13px; color:var(--text-mid);">low ${tmin}°</span>
+          </div>
+        </div>
+        <div class="tile-hint">${desc}</div>`;
+
+    bodyEl.innerHTML = `
+      ${renderWeatherDaySelectorHTML()}
+      ${topLine}
+      <div class="tile-hint" style="color:var(--text-dim);">day ${tmax}° / night ${tmin}°</div>
+      ${rainChance != null ? `<div class="tile-hint" style="color:${rainChance >= 50 ? 'var(--rose-bright)' : 'var(--text-dim)'}; font-family:'JetBrains Mono',monospace;">☔ ${rainChance}% chance of rain</div>` : ''}
+      ${sunrise && sunset ? `<div class="tile-hint" style="color:var(--text-dim); font-family:'JetBrains Mono',monospace;">☀ ${sunrise} · ☾ ${sunset}</div>` : ''}
+    `;
+
+    bodyEl.querySelectorAll('.weather-day-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        weatherSelectedDay = parseInt(btn.dataset.day, 10);
+        renderWeatherDay(bodyEl, weatherSelectedDay);
+      });
+    });
+  }
+
   async function connectWeather(){
     const tile = document.querySelector('[data-module="weather"]').closest('.tile');
     const stateEl = tile.querySelector('.tile-state');
@@ -1405,33 +1469,16 @@
     stateEl.textContent = 'Connecting…';
     stateEl.classList.remove('off');
     try{
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${LOCATION.lat}&longitude=${LOCATION.lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=auto`;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${LOCATION.lat}&longitude=${LOCATION.lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&timezone=auto&forecast_days=6`;
       const res = await fetchWithTimeout(url);
       if(!res.ok) throw new Error('HTTP '+res.status);
       const data = await res.json();
-      const cur = data.current;
-      const desc = WMO[cur.weather_code] || 'Unknown conditions';
-      const iconKey = WMO_ICON[cur.weather_code] || 'cloud';
-      const iconSvg = SVG_ICONS[iconKey];
-      const tmax = Math.round(data.daily.temperature_2m_max[0]);
-      const tmin = Math.round(data.daily.temperature_2m_min[0]);
-      const sunrise = data.daily.sunrise ? new Date(data.daily.sunrise[0]).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : null;
-      const sunset = data.daily.sunset ? new Date(data.daily.sunset[0]).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : null;
+      weatherDailyData = data;
+      weatherSelectedDay = 0;
 
       stateEl.textContent = 'Live — ' + LOCATION.name;
       flashTile('weather');
-      bodyEl.innerHTML = `
-        <div style="display:flex; align-items:center; gap:16px;">
-          <span style="display:inline-flex; width:44px; height:44px; flex-shrink:0;">${iconSvg}</span>
-          <div style="display:flex; align-items:baseline; gap:10px;">
-            <span style="font-family:'JetBrains Mono',monospace; font-size:44px; color:var(--text);">${Math.round(cur.temperature_2m)}°</span>
-            <span style="font-size:13px; color:var(--text-mid);">feels like ${Math.round(cur.apparent_temperature)}°</span>
-          </div>
-        </div>
-        <div class="tile-hint">${desc} · wind ${Math.round(cur.wind_speed_10m)} km/h</div>
-        <div class="tile-hint" style="color:var(--text-dim);">day ${tmax}° / night ${tmin}°</div>
-        ${sunrise && sunset ? `<div class="tile-hint" style="color:var(--text-dim); font-family:'JetBrains Mono',monospace;">☀ ${sunrise} · ☾ ${sunset}</div>` : ''}
-      `;
+      renderWeatherDay(bodyEl, 0);
       btn.style.display = 'none';
       addRefreshIcon('weather', connectWeather);
 
