@@ -308,7 +308,7 @@
     position:absolute; top:calc(100% + 4px); left:0; right:0;
     background:var(--bg-raised);
     border:1px solid var(--line);
-    border-radius:2px;
+    border-radius:3px;
     max-height:220px;
     overflow-y:auto;
     z-index:20;
@@ -329,8 +329,15 @@
   .city-suggestion .cs-region{ color:var(--text-dim); font-family:'JetBrains Mono', monospace; font-size:11px; white-space:nowrap; }
 
   .transit-input{
-    background:var(--bg); border:1px solid var(--line); border-radius:2px;
+    background:var(--bg); border:1px solid var(--line); border-radius:3px;
     color:var(--text); padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  input:not([type="checkbox"]):not([type="range"]):not([type="file"]):focus,
+  select:focus, textarea:focus{
+    outline:none;
+    border-color:var(--rose-bright) !important;
+    box-shadow:0 0 0 3px rgba(225,29,72,.15);
   }
   .transit-input::-webkit-calendar-picker-indicator{ filter:invert(1); cursor:pointer; opacity:.7; }
   .transit-leg{ display:flex; align-items:center; gap:8px; padding:3px 0; font-size:12px; color:var(--text-mid); }
@@ -364,7 +371,7 @@
   .task-card-moves{ display:flex; gap:4px; }
   .task-move-btn{
     background:none; border:1px solid var(--line); color:var(--text-dim);
-    width:20px; height:20px; border-radius:2px; cursor:pointer; font-size:11px; line-height:1;
+    width:20px; height:20px; border-radius:3px; cursor:pointer; font-size:11px; line-height:1;
     display:flex; align-items:center; justify-content:center;
     transition:color .15s ease, border-color .15s ease;
   }
@@ -380,7 +387,7 @@
   .transit-sbb-link:hover{ text-decoration:underline; }
   .transit-mode-toggle{ display:flex; gap:6px; margin-bottom:2px; }
   .transit-mode-btn{
-    flex:1; background:var(--bg); border:1px solid var(--line); border-radius:2px;
+    flex:1; background:var(--bg); border:1px solid var(--line); border-radius:3px;
     color:var(--text-dim); padding:6px 8px; cursor:pointer;
     font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:.05em; text-transform:uppercase;
     transition:color .15s ease, border-color .15s ease, background .15s ease;
@@ -407,7 +414,7 @@
   .cal-next3-item{ display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; border-bottom:1px solid var(--line); }
   .cal-next3-item:last-child{ border-bottom:none; }
   .cal-header{ display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
-  .cal-nav-btn{ background:none; border:1px solid var(--line); color:var(--text-mid); width:24px; height:24px; border-radius:2px; cursor:pointer; font-size:14px; line-height:1; }
+  .cal-nav-btn{ background:none; border:1px solid var(--line); color:var(--text-mid); width:24px; height:24px; border-radius:3px; cursor:pointer; font-size:14px; line-height:1; }
   .cal-nav-btn:hover{ border-color:var(--rose-bright); color:var(--rose-bright); }
   .cal-month-label{ font-family:'Bebas Neue', sans-serif; font-size:16px; letter-spacing:.04em; color:var(--text); }
   .cal-grid{ display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:3px; width:100%; margin-top:8px; box-sizing:border-box; }
@@ -433,13 +440,13 @@
   }
   .news-resize-handle::before{
     content:''; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-    width:36px; height:3px; border-radius:2px; background:var(--line);
+    width:36px; height:3px; border-radius:3px; background:var(--line);
     transition:background .15s ease;
   }
   .news-resize-handle:hover::before{ background:var(--rose-bright); }
   .timer-preset-btn{
     background:var(--bg); border:1px solid var(--line); color:var(--text-dim);
-    padding:6px 10px; font-size:11px; border-radius:2px; cursor:pointer;
+    padding:6px 10px; font-size:11px; border-radius:3px; cursor:pointer;
     transition:color .15s ease, border-color .15s ease, background .15s ease;
   }
   .timer-preset-btn:hover{ color:var(--text); }
@@ -535,7 +542,7 @@
     display:inline-flex; align-items:center; justify-content:center;
     width:36px; height:36px; flex-shrink:0;
     background:none; border:1px solid var(--line);
-    color:var(--text-mid); cursor:pointer; border-radius:2px;
+    color:var(--text-mid); cursor:pointer; border-radius:3px;
     transition:color .15s ease, border-color .15s ease, background .15s ease, transform .1s ease;
   }
   .chat-mic-btn:hover{ color:var(--rose-bright); border-color:var(--rose-bright); }
@@ -607,7 +614,7 @@
     color:var(--rose-bright);
     background:none; border:1px solid var(--rose);
     padding:7px 12px;
-    border-radius:2px;
+    border-radius:3px;
     cursor:pointer;
     transition:background .15s ease, color .15s ease, transform .1s ease;
   }
@@ -700,7 +707,7 @@
   }
   .chat-msg.assistant h1:first-child, .chat-msg.assistant h2:first-child, .chat-msg.assistant h3:first-child{ margin-top:0; }
   .chat-msg.assistant code{
-    background:rgba(0,0,0,.3); border-radius:2px; padding:1px 5px;
+    background:rgba(0,0,0,.3); border-radius:3px; padding:1px 5px;
     font-family:'JetBrains Mono', monospace; font-size:.9em;
   }
   .chat-msg.assistant pre{
@@ -722,7 +729,7 @@
   .chat-msg.system{ align-self:center; color:var(--rose-bright); font-family:'JetBrains Mono',monospace; font-size:11px; text-align:center; }
   .chat-input-row{ display:flex; gap:8px; }
   .chat-input-row input{
-    flex:1; min-width:0; background:var(--bg); border:1px solid var(--line); border-radius:2px;
+    flex:1; min-width:0; background:var(--bg); border:1px solid var(--line); border-radius:3px;
     color:var(--text); padding:9px 12px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none;
   }
 
@@ -744,7 +751,7 @@
     footer{ padding:10px 20px; }
   }
 
-  .coin-row{ cursor:pointer; padding:4px 0; border-radius:2px; transition:opacity .15s ease; }
+  .coin-row{ cursor:pointer; padding:4px 0; border-radius:3px; transition:opacity .15s ease; }
   .coin-row:hover{ opacity:.75; }
 
   .modal-backdrop{
@@ -782,7 +789,7 @@
     background:none; border:1px solid var(--line);
     color:var(--text-mid);
     width:28px; height:28px;
-    border-radius:2px;
+    border-radius:3px;
     cursor:pointer;
     font-size:14px;
     transition:border-color .15s ease, color .15s ease;
@@ -1719,7 +1726,7 @@
     searchRow.style.cssText = 'display:flex; gap:8px; margin:2px 0 4px; position:relative;';
     searchRow.innerHTML = `
       <div style="flex:1; min-width:0; position:relative;">
-        <input id="citySearchInput" type="text" placeholder="Search city…" autocomplete="off" style="width:100%; background:var(--bg); border:1px solid var(--line); border-radius:2px; color:var(--text); padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none; box-sizing:border-box;">
+        <input id="citySearchInput" type="text" placeholder="Search city…" autocomplete="off" style="width:100%; background:var(--bg); border:1px solid var(--line); border-radius:3px; color:var(--text); padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none; box-sizing:border-box;">
         <div id="citySuggestions" class="city-suggestions"></div>
       </div>
       <button id="citySearchBtn" class="tile-cta" style="margin-top:0;">Search</button>
@@ -2022,7 +2029,7 @@
     searchRow.style.cssText = 'display:flex; gap:8px; margin:2px 0 4px; position:relative;';
     searchRow.innerHTML = `
       <div style="flex:1; min-width:0; position:relative;">
-        <input id="stockSearchInput" type="text" placeholder="Add ticker (e.g. TSLA)…" style="width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--line); border-radius:2px; color:var(--text); padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none;" autocomplete="off">
+        <input id="stockSearchInput" type="text" placeholder="Add ticker (e.g. TSLA)…" style="width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--line); border-radius:3px; color:var(--text); padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none;" autocomplete="off">
         <div id="stockSuggestions" class="city-suggestions"></div>
       </div>
       <button id="stockSearchBtn" class="tile-cta" style="margin-top:0;">Add</button>
@@ -3026,7 +3033,7 @@
           const date = p.createdAt ? new Date(p.createdAt).toLocaleDateString([], { month:'short', day:'numeric' }) : '';
           const extra = p.type === 'job' ? (p.trackCount === 1 ? '1 track' : p.trackCount + ' tracks') : '';
           const info = STATUS_INFO[p.status] || STATUS_INFO.new;
-          const badge = `<span style="font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:${info.color}; border:1px solid ${info.color}; border-radius:2px; padding:2px 6px; flex-shrink:0; white-space:nowrap;">${info.label}</span>`;
+          const badge = `<span style="font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:${info.color}; border:1px solid ${info.color}; border-radius:3px; padding:2px 6px; flex-shrink:0; white-space:nowrap;">${info.label}</span>`;
           return `<div class="coin-row" data-item-idx="${idx}" style="width:100%; padding:6px 0; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <div style="min-width:0;">
               <div style="font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.clientName}</div>
