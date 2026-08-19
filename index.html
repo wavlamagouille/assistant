@@ -312,6 +312,11 @@
   }
   .transit-mode-btn:hover{ color:var(--text); }
   .transit-mode-btn.active{ color:var(--rose-bright); border-color:var(--rose-bright); background:rgba(225,29,72,.1); }
+
+  .live-feed-section{ width:100%; padding-top:10px; margin-top:10px; border-top:1px solid var(--line); }
+  .live-feed-row{ display:flex; gap:8px; margin-bottom:8px; }
+  .live-feed-frame-wrap{ position:relative; width:100%; padding-top:56.25%; background:#000; border-radius:3px; overflow:hidden; }
+  .live-feed-frame-wrap iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
   .timer-preset-btn{
     background:var(--bg); border:1px solid var(--line); color:var(--text-dim);
     padding:6px 10px; font-size:11px; border-radius:2px; cursor:pointer;
@@ -850,7 +855,7 @@
     mail:    { w:4,  h:5 },
     agenda:  { w:4,  h:5 },
     markets: { w:4,  h:5 },
-    news:    { w:4,  h:5 },
+    news:    { w:4,  h:9 },
     mastering:{ w:4, h:5 },
     tasks:   { w:4,  h:5 },
     transit: { w:6,  h:5 },
@@ -2319,6 +2324,102 @@
   if(newsBtn) newsBtn.style.display = 'none';
   addRefreshIcon('news', loadNews);
   loadNews();
+
+  // ---- Live 24/7 news feed (YouTube embed) ----
+  // YouTube's live-by-channel embed needs the raw channel ID (the UC... string),
+  // not a handle/@username - those aren't resolvable without the YouTube Data
+  // API. Seeded with one verified channel; add more via channel ID or a full
+  // /channel/UC... URL (Copy channel ID from a channel's About page on YouTube).
+  const DEFAULT_LIVE_CHANNELS = [
+    { name: 'Sky News', id: 'UC8avqgy4vdE3g_oLSfwfDXA' }
+  ];
+
+  function augmentNewsTile(){
+    const tile = document.querySelector('[data-module="news"]');
+    const section = document.createElement('div');
+    section.className = 'live-feed-section';
+    section.innerHTML = `
+      <div class="live-feed-row">
+        <select id="liveFeedSelect" class="transit-input" style="flex:1; min-width:0;"></select>
+        <button class="tile-cta" id="liveFeedAddBtn" style="margin-top:0;">+ Add</button>
+      </div>
+      <div id="liveFeedAddRow" class="live-feed-row" style="display:none;">
+        <input id="liveFeedNameInput" type="text" class="transit-input" placeholder="Name (e.g. BBC News)" style="flex:1; min-width:0;">
+        <input id="liveFeedIdInput" type="text" class="transit-input" placeholder="Channel ID or /channel/UC… URL" style="flex:1.4; min-width:0;">
+        <button class="tile-cta" id="liveFeedSaveBtn" style="margin-top:0;">Save</button>
+      </div>
+      <div class="live-feed-frame-wrap">
+        <iframe id="liveFeedIframe" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+      </div>
+      <div id="liveFeedMsg" class="tile-hint" style="display:none; color:var(--rose-bright); margin-top:6px;"></div>
+    `;
+    tile.appendChild(section);
+
+    function getChannels(){
+      try{
+        const saved = JSON.parse(localStorage.getItem('live_news_channels') || 'null');
+        return saved && saved.length ? saved : DEFAULT_LIVE_CHANNELS;
+      }catch(e){ return DEFAULT_LIVE_CHANNELS; }
+    }
+    function saveChannels(list){
+      localStorage.setItem('live_news_channels', JSON.stringify(list));
+    }
+
+    function renderSelect(){
+      const select = document.getElementById('liveFeedSelect');
+      const channels = getChannels();
+      const lastId = localStorage.getItem('live_news_selected');
+      select.innerHTML = channels.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      const toSelect = channels.find(c => c.id === lastId) ? lastId : channels[0].id;
+      select.value = toSelect;
+      loadFeed(toSelect);
+    }
+
+    function loadFeed(channelId){
+      document.getElementById('liveFeedIframe').src = `https://www.youtube.com/embed/live_stream?channel=${channelId}`;
+      localStorage.setItem('live_news_selected', channelId);
+    }
+
+    document.getElementById('liveFeedSelect').addEventListener('change', (e) => loadFeed(e.target.value));
+
+    document.getElementById('liveFeedAddBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.getElementById('liveFeedAddRow').style.display =
+        document.getElementById('liveFeedAddRow').style.display === 'none' ? 'flex' : 'none';
+    });
+
+    document.getElementById('liveFeedSaveBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const name = document.getElementById('liveFeedNameInput').value.trim();
+      const raw = document.getElementById('liveFeedIdInput').value.trim();
+      const msg = document.getElementById('liveFeedMsg');
+      msg.style.display = 'none';
+
+      if(!name || !raw){
+        msg.textContent = 'Enter both a name and a channel ID.';
+        msg.style.display = 'block';
+        return;
+      }
+      const match = raw.match(/UC[\w-]{20,}/);
+      if(!match){
+        msg.textContent = 'That doesn\u2019t look like a channel ID - it should start with "UC…". Handles (@name) can\u2019t be resolved without the YouTube API; use "Copy channel ID" from the channel\u2019s About page instead.';
+        msg.style.display = 'block';
+        return;
+      }
+      const channels = getChannels();
+      channels.push({ name, id: match[0] });
+      saveChannels(channels);
+      document.getElementById('liveFeedNameInput').value = '';
+      document.getElementById('liveFeedIdInput').value = '';
+      document.getElementById('liveFeedAddRow').style.display = 'none';
+      renderSelect();
+      document.getElementById('liveFeedSelect').value = match[0];
+      loadFeed(match[0]);
+    });
+
+    renderSelect();
+  }
+  augmentNewsTile();
 
   // ---- Mastering (Firebase Realtime Database) ----
   // First pass: show the raw data structure so we can see the real shape
