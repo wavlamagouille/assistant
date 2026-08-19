@@ -320,6 +320,31 @@
   .tile[data-module="news"]{ overflow:hidden; display:flex; flex-direction:column; }
   .tile[data-module="news"] .tile-body{ flex:1 1 130px; min-height:0; max-height:400px; }
   .tile[data-module="news"] .live-feed-section{ flex-shrink:0; }
+
+  .tile[data-module="agenda"]{ overflow:hidden; }
+  .tile[data-module="agenda"] .tile-body{ max-height:none; overflow:visible; }
+  .cal-next3{ width:100%; }
+  .cal-next3-item{ display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; border-bottom:1px solid var(--line); }
+  .cal-next3-item:last-child{ border-bottom:none; }
+  .cal-header{ display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+  .cal-nav-btn{ background:none; border:1px solid var(--line); color:var(--text-mid); width:24px; height:24px; border-radius:2px; cursor:pointer; font-size:14px; line-height:1; }
+  .cal-nav-btn:hover{ border-color:var(--rose-bright); color:var(--rose-bright); }
+  .cal-month-label{ font-family:'Bebas Neue', sans-serif; font-size:16px; letter-spacing:.04em; color:var(--text); }
+  .cal-grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:3px; width:100%; margin-top:8px; }
+  .cal-dow{ text-align:center; font-family:'JetBrains Mono', monospace; font-size:9px; color:var(--text-dim); text-transform:uppercase; padding-bottom:4px; }
+  .cal-day{
+    aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    border-radius:3px; font-size:11px; color:var(--text-mid); cursor:default; position:relative;
+    background:rgba(255,255,255,.02);
+  }
+  .cal-day.empty{ background:none; }
+  .cal-day.today{ background:var(--rose); color:#fff; font-weight:600; }
+  .cal-day.has-events{ cursor:pointer; color:var(--text); }
+  .cal-day.has-events:hover{ background:rgba(255,255,255,.08); }
+  .cal-day.today.has-events:hover{ background:var(--rose-bright); }
+  .cal-day-dot{ width:4px; height:4px; border-radius:50%; background:var(--rose-bright); margin-top:2px; }
+  .cal-day.today .cal-day-dot{ background:#fff; }
+  .cal-day-events{ width:100%; margin-top:10px; padding-top:10px; border-top:1px solid var(--line); }
   .news-resize-handle{
     width:100%; height:10px; margin:2px 0 -2px;
     cursor:ns-resize; position:relative; flex-shrink:0;
@@ -866,7 +891,7 @@
   const DEFAULT_SIZE = {
     weather: { w:12, h:6 },
     mail:    { w:4,  h:5 },
-    agenda:  { w:4,  h:5 },
+    agenda:  { w:5,  h:11 },
     markets: { w:4,  h:5 },
     news:    { w:4,  h:11 },
     mastering:{ w:4, h:5 },
@@ -2184,22 +2209,75 @@
   // Both credentials live server-side in Vercel env vars, fetched through
   // /api/calendar and /api/gmail — never touch the browser or the repo.
 
-  async function loadGmail(){
-    const bodyEl = setTileLive('mail', 'Connecting…');
+  let gmailAccount = '1';
+  let gmailOffset = 0;
+  const GMAIL_PAGE_SIZE = 10;
+  let gmailHasMore = false;
+
+  function renderMailAccountToggle(){
+    const tile = document.querySelector('[data-module="mail"]');
+    const head = tile.querySelector('.tile-head');
+    if(head.querySelector('.mail-account-toggle')) return;
+    const row = document.createElement('div');
+    row.className = 'mail-account-toggle transit-mode-toggle';
+    row.style.marginBottom = '4px';
+    row.innerHTML = `
+      <button class="transit-mode-btn active" data-account="1">Account 1</button>
+      <button class="transit-mode-btn" data-account="2">Account 2</button>
+    `;
+    head.insertAdjacentElement('afterend', row);
+    row.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        gmailAccount = btn.dataset.account;
+        gmailOffset = 0;
+        row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+        loadGmail();
+      });
+    });
+  }
+
+  function renderMailMessages(bodyEl, msgs, append){
+    const rowsHtml = msgs.map(m => `
+      <div style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
+        <div style="font-size:13px; color:var(--text);">${m.subject}</div>
+        <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${m.from}</div>
+      </div>`).join('');
+    if(append){
+      const loadMoreBtn = document.getElementById('mailLoadMoreBtn');
+      if(loadMoreBtn) loadMoreBtn.insertAdjacentHTML('beforebegin', rowsHtml);
+      else bodyEl.insertAdjacentHTML('beforeend', rowsHtml);
+    } else {
+      bodyEl.innerHTML = rowsHtml;
+    }
+    const existingBtn = document.getElementById('mailLoadMoreBtn');
+    if(existingBtn) existingBtn.remove();
+    if(gmailHasMore){
+      bodyEl.insertAdjacentHTML('beforeend', `<button class="tile-cta" id="mailLoadMoreBtn" style="align-self:center;">Load more</button>`);
+      document.getElementById('mailLoadMoreBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        gmailOffset += GMAIL_PAGE_SIZE;
+        loadGmail(true);
+      });
+    }
+  }
+
+  async function loadGmail(append){
+    renderMailAccountToggle();
+    const bodyEl = append
+      ? document.querySelector('[data-module="mail"] .tile-body')
+      : setTileLive('mail', 'Connecting…');
     try{
-      const res = await fetchWithTimeout('/api/google-data?source=gmail');
+      const res = await fetchWithTimeout(`/api/google-data?source=gmail&account=${gmailAccount}&limit=${GMAIL_PAGE_SIZE}&offset=${gmailOffset}`);
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || 'Gmail fetch failed');
       setTileLive('mail', 'Live — Gmail');
+      gmailHasMore = !!data.hasMore;
       const msgs = data.messages || [];
-      if(!msgs.length){
+      if(!msgs.length && !append){
         bodyEl.innerHTML = '<div class="tile-hint">Inbox is empty.</div>';
       } else {
-        bodyEl.innerHTML = msgs.map(m => `
-          <div style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
-            <div style="font-size:13px; color:var(--text);">${m.subject}</div>
-            <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${m.from}</div>
-          </div>`).join('');
+        renderMailMessages(bodyEl, msgs, append);
       }
       connected.add('mail'); refreshCount();
     }catch(err){
@@ -2209,6 +2287,95 @@
     }
   }
 
+  let calEvents = [];
+  let calViewDate = new Date();
+
+  function eventsOnDay(date){
+    return calEvents.filter(ev => {
+      const d = new Date(ev.start);
+      return d.getFullYear() === date.getFullYear() && d.getMonth() === date.getMonth() && d.getDate() === date.getDate();
+    });
+  }
+
+  function renderCalendarGrid(){
+    const bodyEl = document.querySelector('[data-module="agenda"] .tile-body');
+    const now = new Date();
+    const upcoming = calEvents.filter(ev => new Date(ev.start) >= now).slice(0, 3);
+
+    const next3Html = upcoming.length
+      ? upcoming.map(ev => {
+          const d = new Date(ev.start);
+          const dateStr = ev.allDay
+            ? d.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' })
+            : d.toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+          return `<div class="cal-next3-item">
+            <span style="font-size:13px; color:var(--text);">${ev.summary}</span>
+            <span style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; white-space:nowrap; margin-left:10px;">${dateStr}</span>
+          </div>`;
+        }).join('')
+      : '<div class="tile-hint">No upcoming events.</div>';
+
+    const year = calViewDate.getFullYear(), month = calViewDate.getMonth();
+    const monthLabel = calViewDate.toLocaleDateString([], { month:'long', year:'numeric' });
+    const firstOfMonth = new Date(year, month, 1);
+    const startOffset = (firstOfMonth.getDay() + 6) % 7; // Monday-first week
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const dow = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+
+    let dayCells = '';
+    for(let i = 0; i < startOffset; i++) dayCells += '<div class="cal-day empty"></div>';
+    for(let day = 1; day <= daysInMonth; day++){
+      const cellDate = new Date(year, month, day);
+      const isToday = cellDate.toDateString() === now.toDateString();
+      const dayEvents = eventsOnDay(cellDate);
+      dayCells += `<div class="cal-day ${isToday ? 'today' : ''} ${dayEvents.length ? 'has-events' : ''}" data-date="${cellDate.toISOString()}">
+        <span>${day}</span>
+        ${dayEvents.length ? '<div class="cal-day-dot"></div>' : ''}
+      </div>`;
+    }
+
+    bodyEl.innerHTML = `
+      <div class="cal-next3">${next3Html}</div>
+      <div class="cal-header">
+        <button class="cal-nav-btn" id="calPrevBtn">‹</button>
+        <span class="cal-month-label">${monthLabel}</span>
+        <button class="cal-nav-btn" id="calNextBtn">›</button>
+      </div>
+      <div class="cal-grid">
+        ${dow.map(d => `<div class="cal-dow">${d}</div>`).join('')}
+        ${dayCells}
+      </div>
+      <div id="calDayEvents"></div>
+    `;
+
+    document.getElementById('calPrevBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      calViewDate = new Date(year, month - 1, 1);
+      renderCalendarGrid();
+    });
+    document.getElementById('calNextBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      calViewDate = new Date(year, month + 1, 1);
+      renderCalendarGrid();
+    });
+    bodyEl.querySelectorAll('.cal-day.has-events').forEach(cell => {
+      cell.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const date = new Date(cell.dataset.date);
+        const dayEvents = eventsOnDay(date);
+        const label = date.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' });
+        document.getElementById('calDayEvents').innerHTML = `
+          <div class="cal-day-events">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-dim); margin-bottom:6px;">${label}</div>
+            ${dayEvents.map(ev => {
+              const t = ev.allDay ? 'All day' : new Date(ev.start).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+              return `<div class="cal-next3-item"><span style="font-size:13px; color:var(--text);">${ev.summary}</span><span style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${t}</span></div>`;
+            }).join('')}
+          </div>`;
+      });
+    });
+  }
+
   async function loadCalendar(){
     const bodyEl = setTileLive('agenda', 'Connecting…');
     try{
@@ -2216,20 +2383,9 @@
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || 'Calendar fetch failed');
       setTileLive('agenda', 'Live — Google Calendar');
-      const events = data.events || [];
-      if(!events.length){
-        bodyEl.innerHTML = '<div class="tile-hint">No upcoming events.</div>';
-      } else {
-        bodyEl.innerHTML = events.map(ev => {
-          const start = ev.allDay
-            ? new Date(ev.start).toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' })
-            : new Date(ev.start).toLocaleString([], { weekday:'short', hour:'2-digit', minute:'2-digit' });
-          return `<div style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
-            <div style="font-size:13px; color:var(--text);">${ev.summary}</div>
-            <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${start}</div>
-          </div>`;
-        }).join('');
-      }
+      calEvents = data.events || [];
+      calViewDate = new Date();
+      renderCalendarGrid();
       connected.add('agenda'); refreshCount();
     }catch(err){
       console.error('calendar load failed', err);
