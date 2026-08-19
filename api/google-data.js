@@ -5,6 +5,7 @@
 
 import { ImapFlow } from 'imapflow';
 import { rrulestr } from 'rrule';
+import { simpleParser } from 'mailparser';
 
 export default async function handler(req, res) {
   const source = req.query.source;
@@ -16,6 +17,8 @@ export default async function handler(req, res) {
 // account=1 (default) uses GMAIL_ADDRESS/GMAIL_APP_PASSWORD.
 // account=2 uses GMAIL_ADDRESS_2/GMAIL_APP_PASSWORD_2, for a second inbox.
 async function handleGmail(req, res) {
+  if (req.query.action === 'read') return handleGmailRead(req, res);
+
   const account = req.query.account === '2' ? '2' : '1';
   const suffix = account === '2' ? '_2' : '';
   const user = process.env['GMAIL_ADDRESS' + suffix];
@@ -49,9 +52,10 @@ async function handleGmail(req, res) {
         const end = Math.max(1, total - offset);
         const start = Math.max(1, end - limit + 1);
         if (end >= start) {
-          for await (const msg of client.fetch(`${start}:${end}`, { envelope: true })) {
+          for await (const msg of client.fetch(`${start}:${end}`, { envelope: true, uid: true })) {
             const from = msg.envelope.from && msg.envelope.from[0];
             messages.push({
+              uid: msg.uid,
               subject: msg.envelope.subject || '(no subject)',
               from: from ? (from.name || from.address) : '',
               date: msg.envelope.date
@@ -65,6 +69,54 @@ async function handleGmail(req, res) {
     await client.logout();
     messages.reverse(); // most recent first
     res.status(200).json({ messages, total, offset, limit, hasMore: offset + limit < total });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function handleGmailRead(req, res) {
+  const account = req.query.account === '2' ? '2' : '1';
+  const suffix = account === '2' ? '_2' : '';
+  const user = process.env['GMAIL_ADDRESS' + suffix];
+  const pass = process.env['GMAIL_APP_PASSWORD' + suffix];
+  if (!user || !pass) {
+    const label = account === '2' ? 'GMAIL_ADDRESS_2 / GMAIL_APP_PASSWORD_2' : 'GMAIL_ADDRESS / GMAIL_APP_PASSWORD';
+    return res.status(400).json({ error: `${label} are not set in Vercel Environment Variables.` });
+  }
+  const uid = parseInt(req.query.uid, 10);
+  if (!uid) return res.status(400).json({ error: 'Missing or invalid uid parameter.' });
+
+  const client = new ImapFlow({
+    host: 'imap.gmail.com',
+    port: 993,
+    secure: true,
+    auth: { user, pass },
+    logger: false
+  });
+
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+    let raw = null;
+    try {
+      const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
+      if (msg && msg.source) raw = msg.source;
+    } finally {
+      lock.release();
+    }
+    await client.logout();
+
+    if (!raw) return res.status(404).json({ error: 'Message not found.' });
+
+    const parsed = await simpleParser(raw);
+    res.status(200).json({
+      subject: parsed.subject || '(no subject)',
+      from: parsed.from ? parsed.from.text : '',
+      to: parsed.to ? parsed.to.text : '',
+      date: parsed.date,
+      text: parsed.text || '',
+      html: parsed.html || null
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
