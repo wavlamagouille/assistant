@@ -789,7 +789,7 @@
   </div>
 
   <div class="modal-backdrop" id="mailModalBackdrop">
-    <div class="modal-panel" style="width:min(600px, 92vw);">
+    <div class="modal-panel" style="width:min(720px, 95vw);">
       <div class="modal-head">
         <div>
           <div class="modal-title" id="mailModalTitle">EMAIL</div>
@@ -797,7 +797,7 @@
         </div>
         <button class="modal-close" id="mailModalClose">✕</button>
       </div>
-      <div id="mailModalBody" style="padding:20px; overflow-y:auto; max-height:70vh;"></div>
+      <div id="mailModalBody" style="padding:14px; overflow-y:auto; max-height:78vh;"></div>
     </div>
   </div>
 
@@ -2351,7 +2351,7 @@
       if(data.html){
         const iframe = document.createElement('iframe');
         iframe.sandbox = ''; // fully sandboxed - no scripts, no same-origin access
-        iframe.style.cssText = 'width:100%; height:60vh; border:0; background:#fff; border-radius:3px;';
+        iframe.style.cssText = 'width:100%; height:70vh; border:0; background:#fff; border-radius:3px;';
         iframe.srcdoc = data.html;
         document.getElementById('mailModalBody').appendChild(iframe);
       } else {
