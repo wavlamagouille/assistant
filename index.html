@@ -315,8 +315,10 @@
 
   .live-feed-section{ width:100%; padding-top:10px; margin-top:10px; border-top:1px solid var(--line); }
   .live-feed-row{ display:flex; gap:8px; margin-bottom:8px; }
-  .live-feed-frame-wrap{ position:relative; width:100%; padding-top:56.25%; background:#000; border-radius:3px; overflow:hidden; }
+  .live-feed-frame-wrap{ position:relative; width:100%; padding-top:56.25%; max-height:200px; background:#000; border-radius:3px; overflow:hidden; }
   .live-feed-frame-wrap iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
+  .tile[data-module="news"]{ overflow:hidden; }
+  .tile[data-module="news"] .tile-body{ max-height:130px; }
   .timer-preset-btn{
     background:var(--bg); border:1px solid var(--line); color:var(--text-dim);
     padding:6px 10px; font-size:11px; border-radius:2px; cursor:pointer;
@@ -855,7 +857,7 @@
     mail:    { w:4,  h:5 },
     agenda:  { w:4,  h:5 },
     markets: { w:4,  h:5 },
-    news:    { w:4,  h:9 },
+    news:    { w:4,  h:11 },
     mastering:{ w:4, h:5 },
     tasks:   { w:4,  h:5 },
     transit: { w:6,  h:5 },
@@ -2325,14 +2327,11 @@
   addRefreshIcon('news', loadNews);
   loadNews();
 
-  // ---- Live 24/7 news feed (YouTube embed) ----
-  // YouTube's live-by-channel embed needs the raw channel ID (the UC... string),
-  // not a handle/@username - those aren't resolvable without the YouTube Data
-  // API. Seeded with one verified channel; add more via channel ID or a full
-  // /channel/UC... URL (Copy channel ID from a channel's About page on YouTube).
-  const DEFAULT_LIVE_CHANNELS = [
-    { name: 'Sky News', id: 'UC8avqgy4vdE3g_oLSfwfDXA' }
-  ];
+  // ---- Live 24/7 news feed (YouTube embed via Data API lookup) ----
+  // Channels are stored and resolved by NAME - the server looks up the real
+  // channel ID and current live video via the YouTube Data API each time,
+  // so nobody (including me) has to hunt down or guess raw channel IDs.
+  const DEFAULT_LIVE_CHANNELS = ['Sky News', 'BBC News', 'Al Jazeera English'];
 
   function augmentNewsTile(){
     const tile = document.querySelector('[data-module="news"]');
@@ -2344,9 +2343,8 @@
         <button class="tile-cta" id="liveFeedAddBtn" style="margin-top:0;">+ Add</button>
       </div>
       <div id="liveFeedAddRow" class="live-feed-row" style="display:none;">
-        <input id="liveFeedNameInput" type="text" class="transit-input" placeholder="Name (e.g. BBC News)" style="flex:1; min-width:0;">
-        <input id="liveFeedIdInput" type="text" class="transit-input" placeholder="Channel ID or /channel/UC… URL" style="flex:1.4; min-width:0;">
-        <button class="tile-cta" id="liveFeedSaveBtn" style="margin-top:0;">Save</button>
+        <input id="liveFeedNameInput" type="text" class="transit-input" placeholder="Channel name (e.g. Bloomberg TV)" style="flex:1; min-width:0;">
+        <button class="tile-cta" id="liveFeedSaveBtn" style="margin-top:0;">Add</button>
       </div>
       <div class="live-feed-frame-wrap">
         <iframe id="liveFeedIframe" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
@@ -2357,36 +2355,36 @@
 
     function getChannels(){
       try{
-        const saved = JSON.parse(localStorage.getItem('live_news_channels') || 'null');
+        const saved = JSON.parse(localStorage.getItem('live_news_channel_names') || 'null');
         return saved && saved.length ? saved : DEFAULT_LIVE_CHANNELS;
       }catch(e){ return DEFAULT_LIVE_CHANNELS; }
     }
     function saveChannels(list){
-      localStorage.setItem('live_news_channels', JSON.stringify(list));
+      localStorage.setItem('live_news_channel_names', JSON.stringify(list));
     }
 
     function renderSelect(){
       const select = document.getElementById('liveFeedSelect');
       const channels = getChannels();
-      const lastId = localStorage.getItem('live_news_selected');
-      select.innerHTML = channels.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-      const toSelect = channels.find(c => c.id === lastId) ? lastId : channels[0].id;
+      const last = localStorage.getItem('live_news_selected_name');
+      select.innerHTML = channels.map(name => `<option value="${name}">${name}</option>`).join('');
+      const toSelect = channels.includes(last) ? last : channels[0];
       select.value = toSelect;
       loadFeed(toSelect);
     }
 
-    async function loadFeed(channelId){
+    async function loadFeed(channelName){
       const iframe = document.getElementById('liveFeedIframe');
       const msg = document.getElementById('liveFeedMsg');
       msg.style.display = 'none';
       iframe.src = '';
-      localStorage.setItem('live_news_selected', channelId);
+      localStorage.setItem('live_news_selected_name', channelName);
       try{
-        const res = await fetchWithTimeout(`/api/youtube-live?channelId=${encodeURIComponent(channelId)}`, null, 8000);
+        const res = await fetchWithTimeout(`/api/youtube-live?channelName=${encodeURIComponent(channelName)}`, null, 8000);
         const data = await res.json();
         if(!res.ok) throw new Error(data.error || 'Lookup failed');
         if(!data.videoId){
-          msg.textContent = data.message || 'No live broadcast found for this channel right now.';
+          msg.textContent = data.message || 'No live broadcast found right now.';
           msg.style.display = 'block';
           return;
         }
@@ -2409,30 +2407,15 @@
     document.getElementById('liveFeedSaveBtn').addEventListener('click', (e) => {
       e.stopPropagation();
       const name = document.getElementById('liveFeedNameInput').value.trim();
-      const raw = document.getElementById('liveFeedIdInput').value.trim();
-      const msg = document.getElementById('liveFeedMsg');
-      msg.style.display = 'none';
-
-      if(!name || !raw){
-        msg.textContent = 'Enter both a name and a channel ID.';
-        msg.style.display = 'block';
-        return;
-      }
-      const match = raw.match(/UC[\w-]{20,}/);
-      if(!match){
-        msg.textContent = 'That doesn\u2019t look like a channel ID - it should start with "UC…". Handles (@name) can\u2019t be resolved without the YouTube API; use "Copy channel ID" from the channel\u2019s About page instead.';
-        msg.style.display = 'block';
-        return;
-      }
+      if(!name) return;
       const channels = getChannels();
-      channels.push({ name, id: match[0] });
+      if(!channels.includes(name)) channels.push(name);
       saveChannels(channels);
       document.getElementById('liveFeedNameInput').value = '';
-      document.getElementById('liveFeedIdInput').value = '';
       document.getElementById('liveFeedAddRow').style.display = 'none';
       renderSelect();
-      document.getElementById('liveFeedSelect').value = match[0];
-      loadFeed(match[0]);
+      document.getElementById('liveFeedSelect').value = name;
+      loadFeed(name);
     });
 
     renderSelect();
