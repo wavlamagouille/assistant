@@ -2341,7 +2341,10 @@
   // Channels are stored and resolved by NAME - the server looks up the real
   // channel ID and current live video via the YouTube Data API each time,
   // so nobody (including me) has to hunt down or guess raw channel IDs.
-  const DEFAULT_LIVE_CHANNELS = ['Sky News', 'BBC News', 'Al Jazeera English', 'Bloomberg Television', 'Sky Sports News'];
+  // Sourced from an aggregator that specifically curates channels confirmed
+  // to run real 24/7 YouTube live streams (not just occasional live clips),
+  // rather than guessed - much better odds of actually being live.
+  const DEFAULT_LIVE_CHANNELS = ['Sky News', 'Al Jazeera English', 'France 24 English', 'DW News', 'NBC News NOW', 'CBS News'];
 
   function augmentNewsTile(){
     const tile = document.querySelector('[data-module="news"]');
