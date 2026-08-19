@@ -15,8 +15,8 @@
 <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
 <style>
   :root{
-    --bg: #18181b;
-    --bg-raised: #1f1f23;
+    --bg: #09090b;
+    --bg-raised: #161618;
     --line: #2c2c31;
     --rose: #9f1239;
     --rose-bright: #e11d48;
@@ -27,7 +27,10 @@
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{
     min-height:100%;
-    background:var(--bg);
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(225,29,72,.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(56,189,248,.06), transparent 55%),
+      var(--bg);
     color:var(--text);
     font-family:'Space Grotesk', sans-serif;
     -webkit-font-smoothing:antialiased;
@@ -455,7 +458,7 @@
 
   .tile{
     position:relative;
-    background:linear-gradient(160deg, #1f1f24 0%, #19191d 100%);
+    background:linear-gradient(160deg, #161618 0%, #0f0f11 100%);
     border:1px solid var(--line);
     border-radius:4px;
     padding:20px 22px;
