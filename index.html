@@ -1019,6 +1019,7 @@
         <button class="transit-mode-btn" data-cat="temp">Temp</button>
         <button class="transit-mode-btn" data-cat="volume">Volume</button>
         <button class="transit-mode-btn" data-cat="audio">Audio</button>
+        <button class="transit-mode-btn" data-cat="image">Image</button>
       </div>
 
       <div id="convNumericPanel">
@@ -1050,6 +1051,29 @@
         <button class="tile-cta" id="audioConvertBtn">Convert</button>
         <div id="audioMsg" class="tile-hint" style="display:none;"></div>
         <a id="audioDownloadLink" style="display:none; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--rose-bright); text-decoration:none;">Download</a>
+      </div>
+
+      <div id="convImagePanel" style="display:none; flex-direction:column; gap:8px;">
+        <input id="imageFileInput" type="file" accept="image/*" class="transit-input" style="padding:6px;">
+        <div style="display:flex; gap:8px;">
+          <select id="imageFormat" class="transit-input" style="flex:1;">
+            <option value="jpeg">JPG</option>
+            <option value="png">PNG</option>
+            <option value="webp">WebP</option>
+          </select>
+          <input id="imageMaxWidth" type="number" class="transit-input" placeholder="Max width (px)" style="flex:1;">
+        </div>
+        <div id="imageQualityRow" style="display:flex; align-items:center; gap:8px;">
+          <span class="tile-hint" style="color:var(--text-dim); white-space:nowrap;">Quality</span>
+          <input id="imageQuality" type="range" min="10" max="100" value="85" style="flex:1;">
+          <span id="imageQualityLabel" class="tile-hint" style="color:var(--text-dim); width:36px;">85%</span>
+        </div>
+        <button class="tile-cta" id="imageConvertBtn">Convert</button>
+        <div id="imageMsg" class="tile-hint" style="display:none;"></div>
+        <div id="imagePreviewWrap" style="display:none; align-items:center; gap:10px;">
+          <img id="imagePreview" style="width:60px; height:60px; object-fit:cover; border-radius:3px; border:1px solid var(--line);">
+          <a id="imageDownloadLink" style="font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--rose-bright); text-decoration:none;">Download</a>
+        </div>
       </div>
     </div>
   `;
@@ -3433,12 +3457,16 @@
       document.querySelectorAll('#convCatToggle .transit-mode-btn').forEach(b => b.classList.toggle('active', b === btn));
       const numericPanel = document.getElementById('convNumericPanel');
       const audioPanel = document.getElementById('convAudioPanel');
+      const imagePanel = document.getElementById('convImagePanel');
+      numericPanel.style.display = 'none';
+      audioPanel.style.display = 'none';
+      imagePanel.style.display = 'none';
       if(convCategory === 'audio'){
-        numericPanel.style.display = 'none';
         audioPanel.style.display = 'flex';
+      } else if(convCategory === 'image'){
+        imagePanel.style.display = 'flex';
       } else {
         numericPanel.style.display = 'block';
-        audioPanel.style.display = 'none';
         populateConvSelects();
         runConversion();
       }
@@ -3594,6 +3622,90 @@
       audioCtx.close();
     }catch(err){
       console.error('audio conversion failed', err);
+      msg.textContent = 'Conversion failed: ' + err.message;
+      msg.style.color = 'var(--rose-bright)';
+      msg.style.display = 'block';
+    }
+    btn.textContent = 'Convert';
+    btn.disabled = false;
+  });
+
+  // ---- Image conversion (Canvas API, fully client-side) ----
+  document.getElementById('imageFormat').addEventListener('change', (e) => {
+    document.getElementById('imageQualityRow').style.display = e.target.value === 'png' ? 'none' : 'flex';
+  });
+  document.getElementById('imageQuality').addEventListener('input', (e) => {
+    document.getElementById('imageQualityLabel').textContent = e.target.value + '%';
+  });
+
+  document.getElementById('imageConvertBtn').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const fileInput = document.getElementById('imageFileInput');
+    const format = document.getElementById('imageFormat').value;
+    const quality = parseInt(document.getElementById('imageQuality').value, 10) / 100;
+    const maxWidth = parseInt(document.getElementById('imageMaxWidth').value, 10) || null;
+    const msg = document.getElementById('imageMsg');
+    const previewWrap = document.getElementById('imagePreviewWrap');
+    const btn = document.getElementById('imageConvertBtn');
+    msg.style.display = 'none';
+    previewWrap.style.display = 'none';
+
+    if(!fileInput.files.length){
+      msg.textContent = 'Choose a file first.';
+      msg.style.color = 'var(--rose-bright)';
+      msg.style.display = 'block';
+      return;
+    }
+
+    btn.textContent = 'Converting…';
+    btn.disabled = true;
+    try{
+      const file = fileInput.files[0];
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const img = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = dataUrl;
+      });
+
+      let { width, height } = img;
+      if(maxWidth && width > maxWidth){
+        height = Math.round(height * (maxWidth / width));
+        width = maxWidth;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx2d = canvas.getContext('2d');
+      // PNG/JPEG have no alpha-less requirement, but for JPEG output on a
+      // transparent source, fill white first so it doesn't render black.
+      if(format === 'jpeg'){
+        ctx2d.fillStyle = '#fff';
+        ctx2d.fillRect(0, 0, width, height);
+      }
+      ctx2d.drawImage(img, 0, 0, width, height);
+
+      const mimeType = format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, format === 'png' ? undefined : quality));
+      if(!blob) throw new Error('Encoding failed (format may be unsupported by your browser).');
+
+      const ext = format === 'jpeg' ? 'jpg' : format;
+      const baseName = file.name.replace(/\.[^.]+$/, '');
+      const url = URL.createObjectURL(blob);
+      document.getElementById('imagePreview').src = url;
+      const downloadLink = document.getElementById('imageDownloadLink');
+      downloadLink.href = url;
+      downloadLink.download = `${baseName}.${ext}`;
+      downloadLink.textContent = `Download ${baseName}.${ext} (${(blob.size/1024).toFixed(0)} KB)`;
+      previewWrap.style.display = 'flex';
+    }catch(err){
+      console.error('image conversion failed', err);
       msg.textContent = 'Conversion failed: ' + err.message;
       msg.style.color = 'var(--rose-bright)';
       msg.style.display = 'block';
