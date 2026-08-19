@@ -12,6 +12,7 @@
 <script src="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack-all.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
 <style>
   :root{
     --bg: #18181b;
@@ -422,7 +423,7 @@
   .tile[data-module="news"]      { --module-accent:#22d3ee; }
   .tile[data-module="mastering"] { --module-accent:#e11d48; }
   .tile[data-module="transit"]   { --module-accent:#fb923c; }
-  .tile[data-module="currency"]  { --module-accent:#2dd4bf; }
+  .tile[data-module="converter"]  { --module-accent:#2dd4bf; }
   .tile[data-module="timer"]     { --module-accent:#f472b6; }
   .tile[data-module="qr"]        { --module-accent:#a3e635; }
   .tile[data-module="taptempo"]  { --module-accent:#38bdf8; }
@@ -943,8 +944,7 @@
     mastering:{ w:4, h:5 },
     tasks:   { w:4,  h:5 },
     transit: { w:6,  h:5 },
-    currency:{ w:4,  h:4 },
-    unitconv:{ w:4,  h:5 },
+    converter:{ w:4, h:7 },
     timer:   { w:4,  h:4 },
     taptempo:{ w:4,  h:4 }
   };
@@ -1003,52 +1003,57 @@
   `;
   grid.appendChild(wrapAsGridItem('tasks', tasks));
 
-  const currencyTile = document.createElement('div');
-  currencyTile.className = 'tile';
-  currencyTile.dataset.module = 'currency';
-  currencyTile.innerHTML = `
+  const converterTile = document.createElement('div');
+  converterTile.className = 'tile';
+  converterTile.dataset.module = 'converter';
+  converterTile.innerHTML = `
     <div class="tile-head">
-      <div class="tile-name">CURRENCY</div>
+      <div class="tile-name">CONVERTER</div>
       <div class="tile-head-right"><div class="tile-idx">09</div></div>
     </div>
     <div style="width:100%; display:flex; flex-direction:column; gap:8px;">
-      <div style="display:flex; gap:8px;">
-        <input id="currencyAmount" type="number" class="transit-input" value="100" style="flex:1; min-width:0;">
-        <select id="currencyFrom" class="transit-input" style="width:80px;"></select>
-        <span style="align-self:center; color:var(--text-dim);">→</span>
-        <select id="currencyTo" class="transit-input" style="width:80px;"></select>
-      </div>
-      <div id="currencyResult" style="font-family:'JetBrains Mono',monospace; font-size:28px; color:var(--text);">—</div>
-      <div id="currencyMeta" class="tile-hint" style="color:var(--text-dim);"></div>
-    </div>
-  `;
-  grid.appendChild(wrapAsGridItem('currency', currencyTile));
-
-  const unitConvTile = document.createElement('div');
-  unitConvTile.className = 'tile';
-  unitConvTile.dataset.module = 'unitconv';
-  unitConvTile.innerHTML = `
-    <div class="tile-head">
-      <div class="tile-name">UNIT CONVERTER</div>
-      <div class="tile-head-right"><div class="tile-idx">14</div></div>
-    </div>
-    <div style="width:100%; display:flex; flex-direction:column; gap:8px;">
-      <div class="transit-mode-toggle" id="unitCatToggle">
-        <button class="transit-mode-btn active" data-cat="length">Length</button>
+      <div class="transit-mode-toggle" id="convCatToggle" style="flex-wrap:wrap;">
+        <button class="transit-mode-btn active" data-cat="currency">Currency</button>
+        <button class="transit-mode-btn" data-cat="length">Length</button>
         <button class="transit-mode-btn" data-cat="weight">Weight</button>
         <button class="transit-mode-btn" data-cat="temp">Temp</button>
         <button class="transit-mode-btn" data-cat="volume">Volume</button>
+        <button class="transit-mode-btn" data-cat="audio">Audio</button>
       </div>
-      <div style="display:flex; gap:8px;">
-        <input id="unitAmount" type="number" class="transit-input" value="1" style="flex:1; min-width:0;">
-        <select id="unitFrom" class="transit-input" style="width:80px;"></select>
-        <span style="align-self:center; color:var(--text-dim);">→</span>
-        <select id="unitTo" class="transit-input" style="width:80px;"></select>
+
+      <div id="convNumericPanel">
+        <div style="display:flex; gap:8px;">
+          <input id="convAmount" type="number" class="transit-input" value="1" style="flex:1; min-width:0;">
+          <select id="convFrom" class="transit-input" style="width:80px;"></select>
+          <span style="align-self:center; color:var(--text-dim);">→</span>
+          <select id="convTo" class="transit-input" style="width:80px;"></select>
+        </div>
+        <div id="convResult" style="font-family:'JetBrains Mono',monospace; font-size:28px; color:var(--text); margin-top:8px;">—</div>
+        <div id="convMeta" class="tile-hint" style="color:var(--text-dim);"></div>
       </div>
-      <div id="unitResult" style="font-family:'JetBrains Mono',monospace; font-size:28px; color:var(--text);">—</div>
+
+      <div id="convAudioPanel" style="display:none; flex-direction:column; gap:8px;">
+        <input id="audioFileInput" type="file" accept="audio/*" class="transit-input" style="padding:6px;">
+        <div style="display:flex; gap:8px;">
+          <select id="audioFormat" class="transit-input" style="flex:1;">
+            <option value="wav">WAV</option>
+            <option value="aiff">AIFF</option>
+            <option value="mp3">MP3</option>
+          </select>
+          <select id="audioBitrate" class="transit-input" style="flex:1; display:none;">
+            <option value="128">128 kbps</option>
+            <option value="192" selected>192 kbps</option>
+            <option value="256">256 kbps</option>
+            <option value="320">320 kbps</option>
+          </select>
+        </div>
+        <button class="tile-cta" id="audioConvertBtn">Convert</button>
+        <div id="audioMsg" class="tile-hint" style="display:none;"></div>
+        <a id="audioDownloadLink" style="display:none; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--rose-bright); text-decoration:none;">Download</a>
+      </div>
     </div>
   `;
-  grid.appendChild(wrapAsGridItem('unitconv', unitConvTile));
+  grid.appendChild(wrapAsGridItem('converter', converterTile));
 
   const timerTile = document.createElement('div');
   timerTile.className = 'tile';
@@ -3345,71 +3350,15 @@
 
   augmentTransitTile();
 
-  // ---- Currency converter (Frankfurter, ECB rates, no key needed) ----
+  // ---- Unified Converter: currency, length, weight, temp, volume, audio ----
   const CURRENCIES = ['USD', 'EUR', 'CHF', 'GBP', 'JPY', 'CNY', 'CAD', 'AUD'];
-  const fromSelect = document.getElementById('currencyFrom');
-  const toSelect = document.getElementById('currencyTo');
-  fromSelect.innerHTML = CURRENCIES.map(c => `<option value="${c}">${c}</option>`).join('');
-  toSelect.innerHTML = CURRENCIES.map(c => `<option value="${c}">${c}</option>`).join('');
-  fromSelect.value = 'CHF';
-  toSelect.value = 'EUR';
-
-  let currencyDebounce = null;
-  async function convertCurrency(){
-    const amount = parseFloat(document.getElementById('currencyAmount').value) || 0;
-    const from = fromSelect.value;
-    const to = toSelect.value;
-    const resultEl = document.getElementById('currencyResult');
-    const metaEl = document.getElementById('currencyMeta');
-    if(from === to){
-      resultEl.textContent = amount.toLocaleString('en-US', { maximumFractionDigits:2 }) + ' ' + to;
-      metaEl.textContent = 'Same currency';
-      return;
-    }
-    try{
-      const res = await fetchWithTimeout(`https://api.frankfurter.dev/v2/rate/${from}/${to}`, null, 6000);
-      const data = await res.json();
-      if(!res.ok || data.rate == null) throw new Error((data && data.message) || 'Conversion failed');
-      const converted = amount * data.rate;
-      resultEl.textContent = converted.toLocaleString('en-US', { maximumFractionDigits:2 }) + ' ' + to;
-      metaEl.textContent = 'ECB reference rate';
-      connected.add('currency'); refreshCount();
-    }catch(err){
-      console.error('currency conversion failed', err);
-      resultEl.textContent = '—';
-      metaEl.textContent = err.message || 'Conversion failed.';
-    }
-  }
-  ['currencyAmount'].forEach(id => {
-    document.getElementById(id).addEventListener('input', () => {
-      clearTimeout(currencyDebounce);
-      currencyDebounce = setTimeout(convertCurrency, 400);
-    });
-  });
-  fromSelect.addEventListener('change', convertCurrency);
-  toSelect.addEventListener('change', convertCurrency);
-  convertCurrency();
-
-  // ---- Unit converter (pure client-side, no API needed) ----
   const UNIT_CATEGORIES = {
-    length: {
-      units: { mm:0.001, cm:0.01, m:1, km:1000, in:0.0254, ft:0.3048, yd:0.9144, mi:1609.344 },
-      default: ['m', 'ft']
-    },
-    weight: {
-      units: { mg:0.000001, g:0.001, kg:1, t:1000, oz:0.0283495, lb:0.453592 },
-      default: ['kg', 'lb']
-    },
-    volume: {
-      units: { ml:0.001, l:1, 'gal(US)':3.78541, 'qt(US)':0.946353, 'pt(US)':0.473176, 'fl oz':0.0295735, cup:0.24 },
-      default: ['l', 'gal(US)']
-    },
-    temp: {
-      units: { '°C':null, '°F':null, K:null }, // handled specially below, not a simple factor
-      default: ['°C', '°F']
-    }
+    length: { units: { mm:0.001, cm:0.01, m:1, km:1000, in:0.0254, ft:0.3048, yd:0.9144, mi:1609.344 }, default: ['m', 'ft'] },
+    weight: { units: { mg:0.000001, g:0.001, kg:1, t:1000, oz:0.0283495, lb:0.453592 }, default: ['kg', 'lb'] },
+    volume: { units: { ml:0.001, l:1, 'gal(US)':3.78541, 'qt(US)':0.946353, 'pt(US)':0.473176, 'fl oz':0.0295735, cup:0.24 }, default: ['l', 'gal(US)'] },
+    temp:   { units: { '°C':null, '°F':null, K:null }, default: ['°C', '°F'] }
   };
-  let unitCategory = 'length';
+  let convCategory = 'currency';
 
   function celsiusToUnit(c, unit){
     if(unit === '°C') return c;
@@ -3422,50 +3371,236 @@
     if(unit === 'K') return v - 273.15;
   }
 
-  function populateUnitSelects(){
-    const cat = UNIT_CATEGORIES[unitCategory];
-    const units = Object.keys(cat.units);
-    const fromSel = document.getElementById('unitFrom');
-    const toSel = document.getElementById('unitTo');
-    fromSel.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
-    toSel.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
-    fromSel.value = cat.default[0];
-    toSel.value = cat.default[1];
+  function populateConvSelects(){
+    const fromSel = document.getElementById('convFrom');
+    const toSel = document.getElementById('convTo');
+    if(convCategory === 'currency'){
+      fromSel.innerHTML = CURRENCIES.map(c => `<option value="${c}">${c}</option>`).join('');
+      toSel.innerHTML = CURRENCIES.map(c => `<option value="${c}">${c}</option>`).join('');
+      fromSel.value = 'CHF'; toSel.value = 'EUR';
+    } else {
+      const cat = UNIT_CATEGORIES[convCategory];
+      const units = Object.keys(cat.units);
+      fromSel.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+      toSel.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+      fromSel.value = cat.default[0]; toSel.value = cat.default[1];
+    }
   }
 
-  function convertUnit(){
-    const amount = parseFloat(document.getElementById('unitAmount').value);
-    const from = document.getElementById('unitFrom').value;
-    const to = document.getElementById('unitTo').value;
-    const resultEl = document.getElementById('unitResult');
+  async function runConversion(){
+    const amount = parseFloat(document.getElementById('convAmount').value);
+    const from = document.getElementById('convFrom').value;
+    const to = document.getElementById('convTo').value;
+    const resultEl = document.getElementById('convResult');
+    const metaEl = document.getElementById('convMeta');
+    metaEl.textContent = '';
     if(isNaN(amount)){ resultEl.textContent = '—'; return; }
 
+    if(convCategory === 'currency'){
+      if(from === to){
+        resultEl.textContent = amount.toLocaleString('en-US', { maximumFractionDigits:2 }) + ' ' + to;
+        metaEl.textContent = 'Same currency';
+        return;
+      }
+      try{
+        const res = await fetchWithTimeout(`https://api.frankfurter.dev/v2/rate/${from}/${to}`, null, 6000);
+        const data = await res.json();
+        if(!res.ok || data.rate == null) throw new Error((data && data.message) || 'Conversion failed');
+        resultEl.textContent = (amount * data.rate).toLocaleString('en-US', { maximumFractionDigits:2 }) + ' ' + to;
+        metaEl.textContent = 'ECB reference rate';
+      }catch(err){
+        console.error('currency conversion failed', err);
+        resultEl.textContent = '—';
+        metaEl.textContent = err.message || 'Conversion failed.';
+      }
+      return;
+    }
+
     let result;
-    if(unitCategory === 'temp'){
+    if(convCategory === 'temp'){
       result = celsiusToUnit(unitToCelsius(amount, from), to);
     } else {
-      const cat = UNIT_CATEGORIES[unitCategory];
-      const base = amount * cat.units[from];
-      result = base / cat.units[to];
+      const cat = UNIT_CATEGORIES[convCategory];
+      result = (amount * cat.units[from]) / cat.units[to];
     }
     resultEl.textContent = result.toLocaleString('en-US', { maximumFractionDigits:4 }) + ' ' + to;
   }
 
-  document.querySelectorAll('#unitCatToggle .transit-mode-btn').forEach(btn => {
+  document.querySelectorAll('#convCatToggle .transit-mode-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      unitCategory = btn.dataset.cat;
-      document.querySelectorAll('#unitCatToggle .transit-mode-btn').forEach(b => b.classList.toggle('active', b === btn));
-      populateUnitSelects();
-      convertUnit();
+      convCategory = btn.dataset.cat;
+      document.querySelectorAll('#convCatToggle .transit-mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+      const numericPanel = document.getElementById('convNumericPanel');
+      const audioPanel = document.getElementById('convAudioPanel');
+      if(convCategory === 'audio'){
+        numericPanel.style.display = 'none';
+        audioPanel.style.display = 'flex';
+      } else {
+        numericPanel.style.display = 'block';
+        audioPanel.style.display = 'none';
+        populateConvSelects();
+        runConversion();
+      }
     });
   });
-  ['unitAmount'].forEach(id => document.getElementById(id).addEventListener('input', convertUnit));
-  document.getElementById('unitFrom').addEventListener('change', convertUnit);
-  document.getElementById('unitTo').addEventListener('change', convertUnit);
+  document.getElementById('convAmount').addEventListener('input', runConversion);
+  document.getElementById('convFrom').addEventListener('change', runConversion);
+  document.getElementById('convTo').addEventListener('change', runConversion);
+  populateConvSelects();
+  runConversion();
 
-  populateUnitSelects();
-  convertUnit();
+  // ---- Audio file conversion (fully client-side - decode via Web Audio API, ----
+  // ---- re-encode to WAV/AIFF natively or MP3 via lamejs) ----
+  document.getElementById('audioFormat').addEventListener('change', (e) => {
+    document.getElementById('audioBitrate').style.display = e.target.value === 'mp3' ? 'block' : 'none';
+  });
+
+  function floatTo16BitPCM(floatArray){
+    const int16 = new Int16Array(floatArray.length);
+    for(let i = 0; i < floatArray.length; i++){
+      const s = Math.max(-1, Math.min(1, floatArray[i]));
+      int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return int16;
+  }
+
+  function audioBufferToWav(buffer){
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const bytesPerSample = 2;
+    const blockAlign = numChannels * bytesPerSample;
+    const numSamples = buffer.length;
+    const dataSize = numSamples * blockAlign;
+    const arrBuf = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(arrBuf);
+    const writeStr = (offset, str) => { for(let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+
+    writeStr(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeStr(8, 'WAVE');
+    writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true); view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data'); view.setUint32(40, dataSize, true);
+
+    const channelData = [];
+    for(let ch = 0; ch < numChannels; ch++) channelData.push(buffer.getChannelData(ch));
+    let offset = 44;
+    for(let i = 0; i < numSamples; i++){
+      for(let ch = 0; ch < numChannels; ch++){
+        const s = Math.max(-1, Math.min(1, channelData[ch][i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        offset += 2;
+      }
+    }
+    return new Blob([arrBuf], { type: 'audio/wav' });
+  }
+
+  function writeIEEE80(view, offset, value){
+    const sign = value < 0 ? 1 : 0;
+    value = Math.abs(value);
+    const exp = Math.floor(Math.log(value) / Math.LN2);
+    const mantissa = (value / Math.pow(2, exp)) * Math.pow(2, 63);
+    view.setUint16(offset, (sign << 15) | (exp + 16383), false);
+    view.setUint32(offset + 2, Math.floor(mantissa / Math.pow(2, 32)), false);
+    view.setUint32(offset + 6, mantissa % Math.pow(2, 32), false);
+  }
+
+  function audioBufferToAiff(buffer){
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const numSamples = buffer.length;
+    const dataSize = numSamples * numChannels * 2;
+    const commSize = 18, ssndSize = 8 + dataSize;
+    const formSize = 4 + (8 + commSize) + (8 + ssndSize);
+    const arrBuf = new ArrayBuffer(8 + formSize);
+    const view = new DataView(arrBuf);
+    const writeStr = (offset, str) => { for(let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+
+    writeStr(0, 'FORM'); view.setUint32(4, formSize, false); writeStr(8, 'AIFF');
+    writeStr(12, 'COMM'); view.setUint32(16, commSize, false);
+    view.setUint16(20, numChannels, false); view.setUint32(22, numSamples, false);
+    view.setUint16(26, 16, false); writeIEEE80(view, 28, sampleRate);
+    writeStr(38, 'SSND'); view.setUint32(42, ssndSize, false);
+    view.setUint32(46, 0, false); view.setUint32(50, 0, false);
+
+    const channelData = [];
+    for(let ch = 0; ch < numChannels; ch++) channelData.push(buffer.getChannelData(ch));
+    let offset = 54;
+    for(let i = 0; i < numSamples; i++){
+      for(let ch = 0; ch < numChannels; ch++){
+        const s = Math.max(-1, Math.min(1, channelData[ch][i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, false);
+        offset += 2;
+      }
+    }
+    return new Blob([arrBuf], { type: 'audio/aiff' });
+  }
+
+  function audioBufferToMp3(buffer, bitrate){
+    const numChannels = Math.min(2, buffer.numberOfChannels);
+    const encoder = new lamejs.Mp3Encoder(numChannels, buffer.sampleRate, bitrate);
+    const mp3Data = [];
+    const blockSize = 1152;
+    const left = floatTo16BitPCM(buffer.getChannelData(0));
+    const right = numChannels > 1 ? floatTo16BitPCM(buffer.getChannelData(1)) : null;
+
+    for(let i = 0; i < left.length; i += blockSize){
+      const leftChunk = left.subarray(i, i + blockSize);
+      const buf = right ? encoder.encodeBuffer(leftChunk, right.subarray(i, i + blockSize)) : encoder.encodeBuffer(leftChunk);
+      if(buf.length > 0) mp3Data.push(buf);
+    }
+    const end = encoder.flush();
+    if(end.length > 0) mp3Data.push(end);
+    return new Blob(mp3Data, { type: 'audio/mp3' });
+  }
+
+  document.getElementById('audioConvertBtn').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const fileInput = document.getElementById('audioFileInput');
+    const format = document.getElementById('audioFormat').value;
+    const bitrate = parseInt(document.getElementById('audioBitrate').value, 10);
+    const msg = document.getElementById('audioMsg');
+    const downloadLink = document.getElementById('audioDownloadLink');
+    const btn = document.getElementById('audioConvertBtn');
+    msg.style.display = 'none';
+    downloadLink.style.display = 'none';
+
+    if(!fileInput.files.length){
+      msg.textContent = 'Choose a file first.';
+      msg.style.color = 'var(--rose-bright)';
+      msg.style.display = 'block';
+      return;
+    }
+
+    btn.textContent = 'Converting…';
+    btn.disabled = true;
+    try{
+      const file = fileInput.files[0];
+      const arrayBuffer = await file.arrayBuffer();
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+      let blob, ext;
+      if(format === 'wav'){ blob = audioBufferToWav(audioBuffer); ext = 'wav'; }
+      else if(format === 'aiff'){ blob = audioBufferToAiff(audioBuffer); ext = 'aiff'; }
+      else { blob = audioBufferToMp3(audioBuffer, bitrate); ext = 'mp3'; }
+
+      const baseName = file.name.replace(/\.[^.]+$/, '');
+      downloadLink.href = URL.createObjectURL(blob);
+      downloadLink.download = `${baseName}.${ext}`;
+      downloadLink.textContent = `Download ${baseName}.${ext}`;
+      downloadLink.style.display = 'block';
+      audioCtx.close();
+    }catch(err){
+      console.error('audio conversion failed', err);
+      msg.textContent = 'Conversion failed: ' + err.message;
+      msg.style.color = 'var(--rose-bright)';
+      msg.style.display = 'block';
+    }
+    btn.textContent = 'Convert';
+    btn.disabled = false;
+  });
 
   // ---- Timer (pure client-side, no API) ----
   let timerTotalSeconds = 25 * 60;
