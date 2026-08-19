@@ -2375,9 +2375,27 @@
       loadFeed(toSelect);
     }
 
-    function loadFeed(channelId){
-      document.getElementById('liveFeedIframe').src = `https://www.youtube.com/embed/live_stream?channel=${channelId}`;
+    async function loadFeed(channelId){
+      const iframe = document.getElementById('liveFeedIframe');
+      const msg = document.getElementById('liveFeedMsg');
+      msg.style.display = 'none';
+      iframe.src = '';
       localStorage.setItem('live_news_selected', channelId);
+      try{
+        const res = await fetchWithTimeout(`/api/youtube-live?channelId=${encodeURIComponent(channelId)}`, null, 8000);
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.error || 'Lookup failed');
+        if(!data.videoId){
+          msg.textContent = data.message || 'No live broadcast found for this channel right now.';
+          msg.style.display = 'block';
+          return;
+        }
+        iframe.src = `https://www.youtube.com/embed/${data.videoId}?autoplay=0`;
+      }catch(err){
+        console.error('live feed lookup failed', err);
+        msg.textContent = 'Could not check this channel: ' + err.message;
+        msg.style.display = 'block';
+      }
     }
 
     document.getElementById('liveFeedSelect').addEventListener('change', (e) => loadFeed(e.target.value));
