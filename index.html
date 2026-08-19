@@ -2216,8 +2216,8 @@
 
   function renderMailAccountToggle(){
     const tile = document.querySelector('[data-module="mail"]');
+    if(tile.querySelector('.mail-account-toggle')) return;
     const head = tile.querySelector('.tile-head');
-    if(head.querySelector('.mail-account-toggle')) return;
     const row = document.createElement('div');
     row.className = 'mail-account-toggle transit-mode-toggle';
     row.style.marginBottom = '4px';
@@ -2268,7 +2268,7 @@
       ? document.querySelector('[data-module="mail"] .tile-body')
       : setTileLive('mail', 'Connecting…');
     try{
-      const res = await fetchWithTimeout(`/api/google-data?source=gmail&account=${gmailAccount}&limit=${GMAIL_PAGE_SIZE}&offset=${gmailOffset}`);
+      const res = await fetchWithTimeout(`/api/google-data?source=gmail&account=${gmailAccount}&limit=${GMAIL_PAGE_SIZE}&offset=${gmailOffset}`, null, 25000);
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || 'Gmail fetch failed');
       setTileLive('mail', 'Live — Gmail');
