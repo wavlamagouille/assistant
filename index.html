@@ -321,7 +321,12 @@
   .tile[data-module="news"] .tile-body{ flex:1 1 130px; min-height:0; max-height:400px; }
   .tile[data-module="news"] .live-feed-section{ flex-shrink:0; }
 
-  .tile[data-module="agenda"]{ overflow-y:auto; overflow-x:hidden; }
+  .tile[data-module="agenda"]{
+    overflow-y:auto; overflow-x:hidden;
+    scrollbar-width:thin; scrollbar-color:var(--line) transparent;
+  }
+  .tile[data-module="agenda"]::-webkit-scrollbar{ width:6px; }
+  .tile[data-module="agenda"]::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
   .tile[data-module="agenda"] .tile-body{ max-height:none; overflow:visible; }
   .cal-next3{ width:100%; }
   .cal-next3-item{ display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; border-bottom:1px solid var(--line); }
@@ -906,7 +911,7 @@
   const DEFAULT_SIZE = {
     weather: { w:12, h:6 },
     mail:    { w:4,  h:5 },
-    agenda:  { w:5,  h:8 },
+    agenda:  { w:4,  h:8 },
     markets: { w:4,  h:5 },
     news:    { w:4,  h:11 },
     mastering:{ w:4, h:5 },
