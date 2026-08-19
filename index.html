@@ -330,12 +330,14 @@
   .cal-nav-btn{ background:none; border:1px solid var(--line); color:var(--text-mid); width:24px; height:24px; border-radius:2px; cursor:pointer; font-size:14px; line-height:1; }
   .cal-nav-btn:hover{ border-color:var(--rose-bright); color:var(--rose-bright); }
   .cal-month-label{ font-family:'Bebas Neue', sans-serif; font-size:16px; letter-spacing:.04em; color:var(--text); }
-  .cal-grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:3px; width:100%; margin-top:8px; }
+  .cal-grid{ display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:3px; width:100%; margin-top:8px; box-sizing:border-box; }
   .cal-dow{ text-align:center; font-family:'JetBrains Mono', monospace; font-size:9px; color:var(--text-dim); text-transform:uppercase; padding-bottom:4px; }
   .cal-day{
-    aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    width:100%; max-width:42px; max-height:42px; aspect-ratio:1;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    margin:0 auto;
     border-radius:3px; font-size:11px; color:var(--text-mid); cursor:default; position:relative;
-    background:rgba(255,255,255,.02);
+    background:rgba(255,255,255,.02); box-sizing:border-box; overflow:hidden;
   }
   .cal-day.empty{ background:none; }
   .cal-day.today{ background:var(--rose); color:#fff; font-weight:600; }
@@ -904,7 +906,7 @@
   const DEFAULT_SIZE = {
     weather: { w:12, h:6 },
     mail:    { w:4,  h:5 },
-    agenda:  { w:5,  h:11 },
+    agenda:  { w:7,  h:11 },
     markets: { w:4,  h:5 },
     news:    { w:4,  h:11 },
     mastering:{ w:4, h:5 },
@@ -3251,16 +3253,17 @@
       return;
     }
     try{
-      const res = await fetchWithTimeout(`https://api.frankfurter.app/latest?amount=${amount}&from=${from}&to=${to}`, null, 6000);
+      const res = await fetchWithTimeout(`https://api.frankfurter.dev/v2/rate/${from}/${to}`, null, 6000);
       const data = await res.json();
-      if(!res.ok || !data.rates || data.rates[to] == null) throw new Error('Conversion failed');
-      resultEl.textContent = data.rates[to].toLocaleString('en-US', { maximumFractionDigits:2 }) + ' ' + to;
-      metaEl.textContent = 'ECB reference rate · ' + (data.date || '');
+      if(!res.ok || data.rate == null) throw new Error((data && data.message) || 'Conversion failed');
+      const converted = amount * data.rate;
+      resultEl.textContent = converted.toLocaleString('en-US', { maximumFractionDigits:2 }) + ' ' + to;
+      metaEl.textContent = 'ECB reference rate';
       connected.add('currency'); refreshCount();
     }catch(err){
       console.error('currency conversion failed', err);
       resultEl.textContent = '—';
-      metaEl.textContent = 'Conversion failed.';
+      metaEl.textContent = err.message || 'Conversion failed.';
     }
   }
   ['currencyAmount'].forEach(id => {
