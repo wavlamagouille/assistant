@@ -599,6 +599,13 @@
     0%{ background-position:200% 0; }
     100%{ background-position:-200% 0; }
   }
+
+  .skeleton-row{
+    height:13px; border-radius:3px; margin:5px 0;
+    background:linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.09) 50%, rgba(255,255,255,.04) 100%);
+    background-size:200% 100%;
+    animation:stateShimmer 1.6s ease-in-out infinite;
+  }
   .tile-hint{
     font-size:13px;
     color:var(--text-mid);
@@ -2748,12 +2755,21 @@
     const stateEl = tile.querySelector('.tile-state');
     stateEl.textContent = label;
     stateEl.classList.remove('off');
-    stateEl.classList.toggle('loading', /connecting/i.test(label || ''));
+    const isConnecting = /connecting/i.test(label || '');
+    stateEl.classList.toggle('loading', isConnecting);
     stateEl.style.color = '';
     const oldNote = tile.querySelector('.tile-need');
     if(oldNote) oldNote.remove();
     if(label && label.indexOf('Live') === 0) flashTile(mod);
-    return tile.querySelector('.tile-body');
+    const bodyEl = tile.querySelector('.tile-body');
+    if(isConnecting && bodyEl){
+      bodyEl.innerHTML = `
+        <div class="skeleton-row" style="width:85%;"></div>
+        <div class="skeleton-row" style="width:60%;"></div>
+        <div class="skeleton-row" style="width:75%;"></div>
+      `;
+    }
+    return bodyEl;
   }
 
   ['mail', 'agenda'].forEach(mod => {
