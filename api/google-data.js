@@ -105,3 +105,4 @@ function parseICSDate(val) {
   const [, y, mo, d, h, mi, s, z] = m;
   return new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}${z ? 'Z' : ''}`);
 }
+
