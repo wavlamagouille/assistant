@@ -319,6 +319,16 @@
   .live-feed-frame-wrap iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
   .tile[data-module="news"]{ overflow:hidden; }
   .tile[data-module="news"] .tile-body{ max-height:130px; }
+  .news-resize-handle{
+    width:100%; height:10px; margin:2px 0 -2px;
+    cursor:ns-resize; position:relative; flex-shrink:0;
+  }
+  .news-resize-handle::before{
+    content:''; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:36px; height:3px; border-radius:2px; background:var(--line);
+    transition:background .15s ease;
+  }
+  .news-resize-handle:hover::before{ background:var(--rose-bright); }
   .timer-preset-btn{
     background:var(--bg); border:1px solid var(--line); color:var(--text-dim);
     padding:6px 10px; font-size:11px; border-radius:2px; cursor:pointer;
@@ -2331,12 +2341,18 @@
   // Channels are stored and resolved by NAME - the server looks up the real
   // channel ID and current live video via the YouTube Data API each time,
   // so nobody (including me) has to hunt down or guess raw channel IDs.
-  const DEFAULT_LIVE_CHANNELS = ['Sky News', 'BBC News', 'Al Jazeera English'];
+  const DEFAULT_LIVE_CHANNELS = ['Sky News', 'BBC News', 'Al Jazeera English', 'Bloomberg Television', 'Sky Sports News'];
 
   function augmentNewsTile(){
     const tile = document.querySelector('[data-module="news"]');
     const section = document.createElement('div');
     section.className = 'live-feed-section';
+
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'news-resize-handle';
+    resizeHandle.id = 'newsResizeHandle';
+    tile.querySelector('.tile-body').insertAdjacentElement('afterend', resizeHandle);
+
     section.innerHTML = `
       <div class="live-feed-row">
         <select id="liveFeedSelect" class="transit-input" style="flex:1; min-width:0;"></select>
@@ -2370,10 +2386,10 @@
       select.innerHTML = channels.map(name => `<option value="${name}">${name}</option>`).join('');
       const toSelect = channels.includes(last) ? last : channels[0];
       select.value = toSelect;
-      loadFeed(toSelect);
+      loadFeed(toSelect, false);
     }
 
-    async function loadFeed(channelName){
+    async function loadFeed(channelName, autoplay){
       const iframe = document.getElementById('liveFeedIframe');
       const msg = document.getElementById('liveFeedMsg');
       msg.style.display = 'none';
@@ -2384,11 +2400,14 @@
         const data = await res.json();
         if(!res.ok) throw new Error(data.error || 'Lookup failed');
         if(!data.videoId){
-          msg.textContent = data.message || 'No live broadcast found right now.';
+          msg.textContent = (data.message || 'No live broadcast found right now.') +
+            ' This can mean the broadcaster doesn\u2019t run a 24/7 YouTube live stream, or the name matched a different channel than intended - try a more specific name.';
           msg.style.display = 'block';
           return;
         }
-        iframe.src = `https://www.youtube.com/embed/${data.videoId}?autoplay=0`;
+        // autoplay=1 only fires from a real click (select change / add channel),
+        // which browsers allow unmuted since it follows a genuine user gesture.
+        iframe.src = `https://www.youtube.com/embed/${data.videoId}?autoplay=${autoplay ? 1 : 0}`;
       }catch(err){
         console.error('live feed lookup failed', err);
         msg.textContent = 'Could not check this channel: ' + err.message;
@@ -2396,7 +2415,7 @@
       }
     }
 
-    document.getElementById('liveFeedSelect').addEventListener('change', (e) => loadFeed(e.target.value));
+    document.getElementById('liveFeedSelect').addEventListener('change', (e) => loadFeed(e.target.value, true));
 
     document.getElementById('liveFeedAddBtn').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -2415,8 +2434,37 @@
       document.getElementById('liveFeedAddRow').style.display = 'none';
       renderSelect();
       document.getElementById('liveFeedSelect').value = name;
-      loadFeed(name);
+      loadFeed(name, true);
     });
+
+    // ---- drag to resize headline list vs. live feed player ----
+    (function setupNewsResize(){
+      const bodyEl = tile.querySelector('.tile-body');
+      const MIN_H = 50, MAX_H = 400;
+      const saved = parseInt(localStorage.getItem('news_body_height'), 10);
+      if(saved && saved >= MIN_H && saved <= MAX_H) bodyEl.style.maxHeight = saved + 'px';
+
+      let dragging = false, startY = 0, startHeight = 0;
+      resizeHandle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        dragging = true;
+        startY = e.clientY;
+        startHeight = bodyEl.getBoundingClientRect().height;
+        document.body.style.userSelect = 'none';
+      });
+      document.addEventListener('mousemove', (e) => {
+        if(!dragging) return;
+        let newHeight = startHeight + (e.clientY - startY);
+        newHeight = Math.max(MIN_H, Math.min(MAX_H, newHeight));
+        bodyEl.style.maxHeight = newHeight + 'px';
+      });
+      document.addEventListener('mouseup', () => {
+        if(!dragging) return;
+        dragging = false;
+        document.body.style.userSelect = '';
+        localStorage.setItem('news_body_height', Math.round(bodyEl.getBoundingClientRect().height));
+      });
+    })();
 
     renderSelect();
   }
