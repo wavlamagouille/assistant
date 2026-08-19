@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "imapflow": "^1.0.164"
+    "imapflow": "^1.0.164",
+    "rrule": "^2.8.1"
   }
 }
