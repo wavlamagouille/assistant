@@ -1890,6 +1890,15 @@
   // Free key from https://twelvedata.com/pricing (no card needed) — paste it here to
   // turn on S&P 500, gold, silver, and stocks. Crypto above works with no key at all.
   const TWELVE_DATA_KEY = 'bbd79e3e73ea4a9eb869a7a6c1bff7d1';
+  const FINNHUB_KEY = 'da31fkpr01qupvfb9t10da31fkpr01qupvfb9t1g';
+
+  // Indices/commodities stay on Twelve Data - Finnhub's free-tier /quote
+  // endpoint doesn't reliably support index symbols (confirmed via their own
+  // GitHub issues, e.g. ^VIX returns "Symbol not found"). Individual stocks
+  // move to Finnhub, which has a far more generous free-tier rate limit
+  // (60/min vs Twelve Data's 800/day) - that's where the credit-limit
+  // problem was actually being hit, since that's what grows as you add tickers.
+  const INDEX_COMMODITY_SYMBOLS = new Set(['SPX', 'IXIC', 'SMI', 'XAU/USD', 'XAG/USD']);
 
   const STOCKS = [
     { symbol:'SPX',     label:'S&P 500', tv:'SP:SPX' },
@@ -1978,38 +1987,75 @@
       ok = !!lastGoodCryptoRows;
     }
 
-    if(TWELVE_DATA_KEY){
+    if(TWELVE_DATA_KEY || FINNHUB_KEY){
       try{
-        const symbols = STOCKS.map(s => s.symbol).join(',');
-        const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbols)}&apikey=${TWELVE_DATA_KEY}`;
-        const res = await fetch(url);
-        const data = await res.json();
+        const indexStocks = STOCKS.filter(s => INDEX_COMMODITY_SYMBOLS.has(s.symbol));
+        const individualStocks = STOCKS.filter(s => !INDEX_COMMODITY_SYMBOLS.has(s.symbol));
+        const quotes = {}; // symbol -> normalized {close, percent_change} | null
 
-        const looksLikeBatchError = STOCKS.length > 1 &&
-          (data.status === 'error' || data.code || !STOCKS.some(s => data[s.symbol]));
+        // Indices/commodities - Twelve Data, one batched call.
+        if(TWELVE_DATA_KEY && indexStocks.length){
+          try{
+            const symbols = indexStocks.map(s => s.symbol).join(',');
+            const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbols)}&apikey=${TWELVE_DATA_KEY}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            const looksLikeBatchError = indexStocks.length > 1 &&
+              (data.status === 'error' || data.code || !indexStocks.some(s => data[s.symbol]));
+            if(!looksLikeBatchError){
+              indexStocks.forEach(asset => {
+                const q = indexStocks.length > 1 ? data[asset.symbol] : data;
+                quotes[asset.symbol] = (q && q.status !== 'error' && q.close != null)
+                  ? { close: q.close, percent_change: q.percent_change } : null;
+              });
+            } else {
+              console.warn('markets: Twelve Data batch failed', data);
+              indexStocks.forEach(asset => { quotes[asset.symbol] = undefined; }); // undefined = keep last-good, not "confirmed gone"
+            }
+          }catch(err){
+            console.error('index/commodity fetch failed', err);
+            indexStocks.forEach(asset => { quotes[asset.symbol] = undefined; });
+          }
+        }
 
-        if(looksLikeBatchError){
-          // Don't retry with a burst of individual requests here — if this was
-          // caused by hitting the free-tier rate limit, firing more requests
-          // right now would likely just fail too. Keep showing whatever
-          // rendered successfully last time instead of blanking it out.
-          console.warn('markets: batch quote failed, keeping last good data', data);
-          const reason = data.message || 'Twelve Data request failed (possibly rate-limited).';
-          stocksHTML = sectionLabel('Stocks & more') + (lastGoodStocksRows || `<div class="tile-hint" style="color:var(--rose-bright);">${reason}</div>`);
+        // Individual stocks - Finnhub, one request per symbol in parallel
+        // (no batch endpoint on their free tier, but 60/min covers this easily).
+        if(FINNHUB_KEY && individualStocks.length){
+          const results = await Promise.allSettled(individualStocks.map(async asset => {
+            const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(asset.symbol)}&token=${FINNHUB_KEY}`);
+            const q = await res.json();
+            return { symbol: asset.symbol, q };
+          }));
+          results.forEach((r, i) => {
+            const asset = individualStocks[i];
+            if(r.status === 'fulfilled' && r.value.q && r.value.q.c){
+              quotes[asset.symbol] = { close: r.value.q.c, percent_change: r.value.q.dp };
+            } else {
+              quotes[asset.symbol] = null; // confirmed no data for this symbol
+            }
+          });
+        }
+
+        const rows = STOCKS.map(asset => {
+          const q = quotes[asset.symbol];
+          if(q === undefined) return null; // provider-level failure - handled by lastGoodStocksRows fallback below
+          if(q === null){
+            return `<div class="coin-row" style="width:100%; display:flex; align-items:center; justify-content:space-between; padding:4px 0;">
+              <span style="font-family:'Bebas Neue',sans-serif; font-size:15px; color:var(--text-dim);">${asset.label} <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--rose-bright); text-transform:uppercase;">unavailable</span></span>
+              <button class="stock-remove-btn" data-remove-symbol="${asset.symbol}" title="Remove ${asset.symbol}" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; line-height:1; padding:0 2px;">×</button>
+            </div>`;
+          }
+          return renderStockRow(asset, q);
+        });
+
+        if(rows.some(r => r === null)){
+          // At least one provider fully failed - keep last-good rather than a partial/broken render.
+          stocksHTML = sectionLabel('Stocks & more') + (lastGoodStocksRows || `<div class="tile-hint" style="color:var(--rose-bright);">Some prices failed to load (possibly rate-limited).</div>`);
           stocksLastFetchOk = false;
         } else {
-          const rows = STOCKS.map(asset => {
-            const q = STOCKS.length > 1 ? data[asset.symbol] : data;
-            if(!q || q.status === 'error' || q.close == null){
-              return `<div class="coin-row" style="width:100%; display:flex; align-items:center; justify-content:space-between; padding:4px 0;">
-                <span style="font-family:'Bebas Neue',sans-serif; font-size:15px; color:var(--text-dim);">${asset.label} <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--rose-bright); text-transform:uppercase;">unavailable</span></span>
-                <button class="stock-remove-btn" data-remove-symbol="${asset.symbol}" title="Remove ${asset.symbol}" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; line-height:1; padding:0 2px;">×</button>
-              </div>`;
-            }
-            return renderStockRow(asset, q);
-          }).join('');
-          lastGoodStocksRows = rows;
-          stocksHTML = sectionLabel('Stocks & more') + rows;
+          const joined = rows.join('');
+          lastGoodStocksRows = joined;
+          stocksHTML = sectionLabel('Stocks & more') + joined;
           stocksLastFetchOk = true;
         }
       }catch(err){
@@ -2018,10 +2064,10 @@
         stocksLastFetchOk = false;
       }
     } else {
-      stocksHTML = sectionLabel('Stocks & more') + `<div class="tile-hint">Add a free Twelve Data API key (twelvedata.com/pricing, no card needed) to enable S&amp;P 500, gold, silver &amp; stocks — set TWELVE_DATA_KEY near the top of the markets code.</div>`;
+      stocksHTML = sectionLabel('Stocks & more') + `<div class="tile-hint">Add a free Twelve Data and/or Finnhub API key to enable stocks/indices.</div>`;
     }
 
-    stateEl.textContent = ok ? 'Live — CoinGecko + Twelve Data' : 'Connection error';
+    stateEl.textContent = ok ? 'Live — CoinGecko + Twelve Data + Finnhub' : 'Connection error';
     bodyEl.innerHTML = cryptoHTML + stocksHTML;
 
     btn.style.display = 'none';
@@ -2104,17 +2150,17 @@
       const q = stockInput.value.trim();
       clearTimeout(stockDebounce);
       hideStockMsg();
-      if(!TWELVE_DATA_KEY || q.length < 1){ stockSuggBox.classList.remove('show'); return; }
+      if(!FINNHUB_KEY || q.length < 1){ stockSuggBox.classList.remove('show'); return; }
       stockDebounce = setTimeout(async () => {
         try{
-          const res = await fetchWithTimeout(`https://api.twelvedata.com/symbol_search?symbol=${encodeURIComponent(q)}&apikey=${TWELVE_DATA_KEY}`, null, 6000);
+          const res = await fetchWithTimeout(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(q)}&token=${FINNHUB_KEY}`, null, 6000);
           const data = await res.json();
-          const matches = (data.data || []).slice(0, 6);
+          const matches = (data.result || []).slice(0, 6);
           if(!matches.length){ stockSuggBox.classList.remove('show'); return; }
           stockSuggBox.innerHTML = matches.map((m, i) => `
             <div class="city-suggestion" data-idx="${i}">
               <span class="cs-name">${m.symbol}</span>
-              <span class="cs-region">${m.instrument_name || ''}</span>
+              <span class="cs-region">${m.description || ''}</span>
             </div>
           `).join('');
           stockSuggBox.classList.add('show');
