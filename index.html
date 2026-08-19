@@ -502,14 +502,14 @@
   .tile[data-module="agenda"]    { --module-accent:#a78bfa; }
   .tile[data-module="markets"]   { --module-accent:#4ade80; }
   .tile[data-module="news"]      { --module-accent:#22d3ee; }
-  .tile[data-module="mastering"] { --module-accent:#e11d48; }
+  .tile[data-module="mastering"] { --module-accent:var(--rose-bright); }
   .tile[data-module="transit"]   { --module-accent:#fb923c; }
   .tile[data-module="converter"]  { --module-accent:#2dd4bf; }
   .tile[data-module="timer"]     { --module-accent:#f472b6; }
   .tile[data-module="qr"]        { --module-accent:#a3e635; }
   .tile[data-module="taptempo"]  { --module-accent:#38bdf8; }
   .tile[data-module="tasks"]     { --module-accent:#facc15; }
-  .tile[data-module="chat"]      { --module-accent:#e11d48; }
+  .tile[data-module="chat"]      { --module-accent:var(--rose-bright); }
 
   /* staggered entrance animation on load */
   @keyframes tileEnter{
@@ -1351,12 +1351,12 @@
   };
   const SVG_ICONS = {
     sun: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>',
-    partly: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="7" r="3" fill="#fbbf24"/><path d="M8 1.5v1.6M8 12v0M1.5 7h1.6M3.3 2.3l1.1 1.1M12.7 2.3l-1.1 1.1" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round"/><path d="M7 20h9.5a4 4 0 0 0 .5-7.97A5.5 5.5 0 0 0 6.6 13.3 3.5 3.5 0 0 0 7 20z" fill="#a1a1aa"/></svg>',
-    cloud: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none"><path d="M6 19h11a4 4 0 0 0 .6-7.96 5.5 5.5 0 0 0-10.79 1.38A3.5 3.5 0 0 0 6 19z" fill="#a1a1aa"/></svg>',
-    fog: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="1.8" stroke-linecap="round"><path d="M6 11h11a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.1 1.3A3 3 0 0 0 6 11z" fill="#71717a" stroke="none" opacity=".7"/><path d="M3 15h18M5 19h14"/></svg>',
-    rain: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.8" stroke-linecap="round"><path d="M6 11h11a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.1 1.3A3 3 0 0 0 6 11z" fill="#a1a1aa" stroke="none"/><path d="M8 15l-1.5 3M13 15l-1.5 3M18 15l-1.5 3"/></svg>',
-    snow: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#e4e4e7" stroke-width="1.5" stroke-linecap="round"><path d="M6 11h11a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.1 1.3A3 3 0 0 0 6 11z" fill="#a1a1aa" stroke="none"/><path d="M8 15v4M6 16.5l4 1M10 16.5l-4 1M16 15v4M14 16.5l4 1M18 16.5l-4 1"/></svg>',
-    storm: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none"><path d="M6 11h11a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.1 1.3A3 3 0 0 0 6 11z" fill="#71717a"/><path d="M12 12l-3 5h3l-1 4 4-6h-3l1-3z" fill="#fbbf24"/></svg>'
+    partly: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="7" r="3" fill="#fbbf24"/><path d="M8 1.5v1.6M8 12v0M1.5 7h1.6M3.3 2.3l1.1 1.1M12.7 2.3l-1.1 1.1" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round"/><path d="M7 20h9.5a4 4 0 0 0 .5-7.97A5.5 5.5 0 0 0 6.6 13.3 3.5 3.5 0 0 0 7 20z" fill="var(--text-mid)"/></svg>',
+    cloud: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none"><path d="M6 19h11a4 4 0 0 0 .6-7.96 5.5 5.5 0 0 0-10.79 1.38A3.5 3.5 0 0 0 6 19z" fill="var(--text-mid)"/></svg>',
+    fog: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="1.8" stroke-linecap="round"><path d="M6 11h11a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.1 1.3A3 3 0 0 0 6 11z" fill="var(--text-dim)" stroke="none" opacity=".7"/><path d="M3 15h18M5 19h14"/></svg>',
+    rain: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.8" stroke-linecap="round"><path d="M6 11h11a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.1 1.3A3 3 0 0 0 6 11z" fill="var(--text-mid)" stroke="none"/><path d="M8 15l-1.5 3M13 15l-1.5 3M18 15l-1.5 3"/></svg>',
+    snow: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#e4e4e7" stroke-width="1.5" stroke-linecap="round"><path d="M6 11h11a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.1 1.3A3 3 0 0 0 6 11z" fill="var(--text-mid)" stroke="none"/><path d="M8 15v4M6 16.5l4 1M10 16.5l-4 1M16 15v4M14 16.5l4 1M18 16.5l-4 1"/></svg>',
+    storm: '<svg width="44" height="44" viewBox="0 0 24 24" fill="none"><path d="M6 11h11a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.1 1.3A3 3 0 0 0 6 11z" fill="var(--text-dim)"/><path d="M12 12l-3 5h3l-1 4 4-6h-3l1-3z" fill="#fbbf24"/></svg>'
   };
   const WMO_ICON = {
     0:'sun', 1:'sun', 2:'partly', 3:'cloud',
@@ -1859,7 +1859,7 @@
 
   function renderCoinRow(c){
     const up = c.price_change_percentage_24h >= 0;
-    const color = up ? '#4ade80' : '#e11d48';
+    const color = up ? '#4ade80' : 'var(--rose-bright)';
     const sign = up ? '+' : '';
     const price = c.current_price >= 1000
       ? c.current_price.toLocaleString('en-US', {maximumFractionDigits:0})
@@ -1881,7 +1881,7 @@
     const price = Number(q.close);
     const pct = Number(q.percent_change);
     const up = pct >= 0;
-    const color = up ? '#4ade80' : '#e11d48';
+    const color = up ? '#4ade80' : 'var(--rose-bright)';
     const sign = up ? '+' : '';
     return `
       <div class="coin-row" data-tv="${asset.tv}" data-title="${asset.label}" style="display:flex; align-items:center; justify-content:space-between; width:100%;">
@@ -3024,7 +3024,7 @@
           new:       { label:'New',                 color:'#60a5fa' },
           mix_fixes: { label:'Mix fixes needed',     color:'#fbbf24' },
           ready:     { label:'Ready to master',      color:'#60a5fa' },
-          delivered: { label:'Ready for review',     color:'#e11d48' },
+          delivered: { label:'Ready for review',     color:'var(--rose-bright)' },
           revisions: { label:'Revisions requested',  color:'#fbbf24' },
           approved:  { label:'Approved',             color:'#4ade80' },
           paid:      { label:'Paid',                 color:'#4ade80' }
@@ -3510,7 +3510,7 @@
         attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:19
       }).addTo(transitMapInstance);
       const latlngs = points.map(p => [p.lat, p.lon]);
-      L.polyline(latlngs, { color:'#e11d48', weight:3 }).addTo(transitMapInstance);
+      L.polyline(latlngs, { color:'var(--rose-bright)', weight:3 }).addTo(transitMapInstance);
       points.forEach(p => L.marker([p.lat, p.lon]).addTo(transitMapInstance).bindPopup(p.name));
       transitMapInstance.fitBounds(latlngs, { padding:[24,24] });
       setTimeout(() => { transitMapInstance && transitMapInstance.invalidateSize(); }, 100);
