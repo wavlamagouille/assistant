@@ -6,7 +6,8 @@
 const FEEDS = [
   { url: 'http://feeds.bbci.co.uk/news/rss.xml', source: 'BBC' },
   { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', source: 'CoinDesk' },
-  { url: 'https://www.attackmagazine.com/feed/', source: 'Attack Mag' }
+  { url: 'https://www.attackmagazine.com/feed/', source: 'Attack Mag' },
+  { url: 'https://www.rts.ch/info/?rts_source=rss', source: 'RTS' }
 ];
 
 export default async function handler(req, res) {
