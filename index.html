@@ -786,6 +786,19 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="mailModalBackdrop">
+    <div class="modal-panel" style="width:min(600px, 92vw);">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title" id="mailModalTitle">EMAIL</div>
+          <div id="mailModalMeta" style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; margin-top:4px;"></div>
+        </div>
+        <button class="modal-close" id="mailModalClose">✕</button>
+      </div>
+      <div id="mailModalBody" style="padding:20px; overflow-y:auto; max-height:70vh;"></div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="transitModalBackdrop">
     <div class="modal-panel">
       <div class="modal-head">
@@ -1955,12 +1968,21 @@
     }
   });
 
+  function closeMailModal(){
+    document.getElementById('mailModalBackdrop').classList.remove('show');
+  }
+  document.getElementById('mailModalClose').addEventListener('click', closeMailModal);
+  document.getElementById('mailModalBackdrop').addEventListener('click', (e) => {
+    if(e.target.id === 'mailModalBackdrop') closeMailModal();
+  });
+
   document.addEventListener('keydown', (e) => {
     if(e.key !== 'Escape') return;
     closeChart();
     closeRadarModal();
     closeTransitModal();
     closeQrModal();
+    closeMailModal();
   });
 
   grid.addEventListener('click', (e) => {
@@ -2213,6 +2235,7 @@
   let gmailOffset = 0;
   const GMAIL_PAGE_SIZE = 10;
   let gmailHasMore = false;
+  const gmailCache = {}; // { '1': { messages, hasMore }, '2': {...} } - avoids reconnecting via IMAP on every account switch
 
   function renderMailAccountToggle(){
     const tile = document.querySelector('[data-module="mail"]');
@@ -2232,14 +2255,14 @@
         gmailAccount = btn.dataset.account;
         gmailOffset = 0;
         row.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
-        loadGmail();
+        loadGmail(); // cache-aware - won't reconnect if this account was already loaded
       });
     });
   }
 
   function renderMailMessages(bodyEl, msgs, append){
     const rowsHtml = msgs.map(m => `
-      <div style="width:100%; padding:6px 0; border-bottom:1px solid var(--line);">
+      <div class="mail-row" data-uid="${m.uid}" style="width:100%; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer;">
         <div style="font-size:13px; color:var(--text);">${m.subject}</div>
         <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${m.from}</div>
       </div>`).join('');
@@ -2257,14 +2280,33 @@
       document.getElementById('mailLoadMoreBtn').addEventListener('click', (e) => {
         e.stopPropagation();
         gmailOffset += GMAIL_PAGE_SIZE;
-        loadGmail(true);
+        loadGmail({ append: true });
       });
     }
   }
 
-  async function loadGmail(append){
+  function renderMailFromCache(){
+    const cache = gmailCache[gmailAccount];
+    const bodyEl = setTileLive('mail', 'Live — Gmail');
+    gmailHasMore = cache.hasMore;
+    if(!cache.messages.length) bodyEl.innerHTML = '<div class="tile-hint">Inbox is empty.</div>';
+    else renderMailMessages(bodyEl, cache.messages, false);
+    connected.add('mail'); refreshCount();
+  }
+
+  async function loadGmail(opts){
+    opts = opts || {};
     renderMailAccountToggle();
-    const bodyEl = append
+
+    // Already loaded this account this session - just show it, no reconnect.
+    // Only an explicit refresh (force) or load-more bypasses the cache.
+    if(!opts.force && !opts.append && gmailCache[gmailAccount]){
+      renderMailFromCache();
+      return;
+    }
+    if(opts.force) gmailOffset = 0;
+
+    const bodyEl = opts.append
       ? document.querySelector('[data-module="mail"] .tile-body')
       : setTileLive('mail', 'Connecting…');
     try{
@@ -2274,10 +2316,15 @@
       setTileLive('mail', 'Live — Gmail');
       gmailHasMore = !!data.hasMore;
       const msgs = data.messages || [];
-      if(!msgs.length && !append){
-        bodyEl.innerHTML = '<div class="tile-hint">Inbox is empty.</div>';
+
+      if(opts.append){
+        gmailCache[gmailAccount].messages = gmailCache[gmailAccount].messages.concat(msgs);
+        gmailCache[gmailAccount].hasMore = gmailHasMore;
+        renderMailMessages(bodyEl, msgs, true);
       } else {
-        renderMailMessages(bodyEl, msgs, append);
+        gmailCache[gmailAccount] = { messages: msgs, hasMore: gmailHasMore };
+        if(!msgs.length) bodyEl.innerHTML = '<div class="tile-hint">Inbox is empty.</div>';
+        else renderMailMessages(bodyEl, msgs, false);
       }
       connected.add('mail'); refreshCount();
     }catch(err){
@@ -2286,6 +2333,42 @@
       bodyEl.innerHTML = `<div class="tile-hint" style="color:var(--rose-bright);">${err.message}</div>`;
     }
   }
+
+  async function openMailModal(uid){
+    document.getElementById('mailModalTitle').textContent = 'Loading…';
+    document.getElementById('mailModalMeta').textContent = '';
+    document.getElementById('mailModalBody').innerHTML = '';
+    document.getElementById('mailModalBackdrop').classList.add('show');
+    try{
+      const res = await fetchWithTimeout(`/api/google-data?source=gmail&action=read&uid=${uid}&account=${gmailAccount}`, null, 25000);
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Could not load message');
+      document.getElementById('mailModalTitle').textContent = data.subject;
+      const dateStr = data.date ? new Date(data.date).toLocaleString() : '';
+      document.getElementById('mailModalMeta').textContent = `${data.from}${dateStr ? ' · ' + dateStr : ''}`;
+      if(data.html){
+        const iframe = document.createElement('iframe');
+        iframe.sandbox = ''; // fully sandboxed - no scripts, no same-origin access
+        iframe.style.cssText = 'width:100%; height:60vh; border:0; background:#fff; border-radius:3px;';
+        iframe.srcdoc = data.html;
+        document.getElementById('mailModalBody').appendChild(iframe);
+      } else {
+        const pre = document.createElement('div');
+        pre.style.cssText = 'white-space:pre-wrap; font-size:13px; line-height:1.6; color:var(--text-mid);';
+        pre.textContent = data.text || '(no content)';
+        document.getElementById('mailModalBody').appendChild(pre);
+      }
+    }catch(err){
+      console.error('mail read failed', err);
+      document.getElementById('mailModalTitle').textContent = 'Failed to load';
+      document.getElementById('mailModalBody').innerHTML = `<div class="tile-hint" style="color:var(--rose-bright);">${err.message}</div>`;
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    const row = e.target.closest('.mail-row');
+    if(row) openMailModal(row.dataset.uid);
+  });
 
   let calEvents = [];
   let calViewDate = new Date();
@@ -2418,7 +2501,7 @@
     const btn = document.querySelector(`button[data-module="${mod}"]`);
     if(btn) btn.style.display = 'none';
   });
-  addRefreshIcon('mail', loadGmail);
+  addRefreshIcon('mail', () => loadGmail({ force: true }));
   addRefreshIcon('agenda', loadCalendar);
 
   // Auto-load on page open, same as weather/markets
