@@ -964,11 +964,13 @@
   const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   function tick(){
     const n = new Date();
-    document.getElementById('time').textContent =
+    timeEl.textContent =
       String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
-    document.getElementById('date').textContent =
+    dateEl.textContent =
       days[n.getDay()]+' '+String(n.getDate()).padStart(2,'0')+' '+months[n.getMonth()]+' '+n.getFullYear();
   }
+  const timeEl = document.getElementById('time');
+  const dateEl = document.getElementById('date');
   tick(); setInterval(tick, 1000);
 
   // ---- timezone clocks (crypto trading session references) ----
@@ -983,10 +985,15 @@
       <div class="tz-label">${z.label}</div>
     </div>
   `).join('');
+  // Build the formatters and grab the DOM elements once - constructing an
+  // Intl.DateTimeFormat is the expensive part of toLocaleTimeString(), and
+  // it was silently happening from scratch every single second, forever.
+  const tzFormatters = TZ_CLOCKS.map(z => new Intl.DateTimeFormat('en-GB', { timeZone: z.tz, hour:'2-digit', minute:'2-digit' }));
+  const tzEls = TZ_CLOCKS.map((z, i) => document.getElementById('tzTime' + i));
   function tickTz(){
-    TZ_CLOCKS.forEach((z, i) => {
-      const el = document.getElementById('tzTime' + i);
-      if(el) el.textContent = new Date().toLocaleTimeString('en-GB', { timeZone: z.tz, hour:'2-digit', minute:'2-digit' });
+    const now = new Date();
+    tzFormatters.forEach((fmt, i) => {
+      if(tzEls[i]) tzEls[i].textContent = fmt.format(now);
     });
   }
   tickTz(); setInterval(tickTz, 1000);
