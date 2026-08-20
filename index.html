@@ -2973,13 +2973,23 @@
   }
 
   // Load the next batch when scrolled near the bottom of the News tile body.
+  // Throttled to once per animation frame - this listener is document-level
+  // (has to be, to catch scroll on any tile-body), so without throttling it
+  // would re-run its check on every single scroll event from anywhere in the
+  // app, including tiles that have nothing to do with News.
+  let newsScrollThrottled = false;
   document.addEventListener('scroll', (e) => {
     const el = e.target;
     if(!el || !el.classList || !el.classList.contains('tile-body')) return;
     if(!el.closest('[data-module="news"]')) return;
-    if(el.scrollTop + el.clientHeight >= el.scrollHeight - 40){
-      renderMoreNews();
-    }
+    if(newsScrollThrottled) return;
+    newsScrollThrottled = true;
+    requestAnimationFrame(() => {
+      if(el.scrollTop + el.clientHeight >= el.scrollHeight - 40){
+        renderMoreNews();
+      }
+      newsScrollThrottled = false;
+    });
   }, true);
 
   const newsBtn = document.querySelector('button[data-module="news"]');
