@@ -1959,7 +1959,7 @@
     });
   }
   augmentWeatherTile();
-  connectWeather();
+  setTimeout(connectWeather, 0);
 
   // ---- markets module: crypto (CoinGecko, no key) + stocks/indices/commodities (Twelve Data, free key) ----
   let lastGoodCryptoRows = '';
@@ -2277,7 +2277,7 @@
     });
   }
   augmentMarketsTile();
-  connectMarkets();
+  setTimeout(connectMarkets, 250);
 
   // ---- chart modal (TradingView widget, all timeframes built in) ----
   const modalBackdrop = document.getElementById('modalBackdrop');
@@ -2981,8 +2981,8 @@
   })();
 
   // Auto-load on page open, same as weather/markets
-  loadGmail();
-  loadCalendar();
+  setTimeout(loadGmail, 500);
+  setTimeout(loadCalendar, 750);
 
   // ---- News (RSS, no key needed at all) ----
   const NEWS_PAGE_SIZE = 8;
@@ -3051,7 +3051,7 @@
   const newsBtn = document.querySelector('button[data-module="news"]');
   if(newsBtn) newsBtn.style.display = 'none';
   addRefreshIcon('news', loadNews);
-  loadNews();
+  setTimeout(loadNews, 1000);
 
   // ---- Live 24/7 news feed (YouTube embed via Data API lookup) ----
   // Channels are stored and resolved by NAME - the server looks up the real
@@ -3185,7 +3185,7 @@
       });
     })();
 
-    renderSelect();
+    setTimeout(renderSelect, 1500);
   }
   augmentNewsTile();
 
@@ -3327,7 +3327,7 @@
   const masteringBtn = document.querySelector('button[data-module="mastering"]');
   if(masteringBtn) masteringBtn.style.display = 'none';
   addRefreshIcon('mastering', loadMastering);
-  loadMastering();
+  setTimeout(loadMastering, 1250);
 
   document.querySelector('[data-module="mastering"]').addEventListener('click', (e) => {
     const row = e.target.closest('[data-item-idx]');
