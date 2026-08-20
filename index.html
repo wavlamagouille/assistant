@@ -58,41 +58,20 @@
     border-radius:50%;
     filter:blur(90px);
     opacity:.10;
-    will-change:transform;
   }
   .ambient-blob:nth-child(1){
     background:var(--rose);
     top:-10%; left:-8%;
-    animation:driftA 38s ease-in-out infinite;
   }
   .ambient-blob:nth-child(2){
     background:#2dd4bf;
     bottom:-15%; right:-10%;
-    animation:driftB 46s ease-in-out infinite;
   }
   .ambient-blob:nth-child(3){
     background:#fbbf24;
     top:35%; left:55%;
     width:35vw; height:35vw;
     opacity:.06;
-    animation:driftC 52s ease-in-out infinite;
-  }
-  @keyframes driftA{
-    0%, 100%{ transform:translate(0, 0) scale(1); }
-    33%{ transform:translate(8vw, 6vh) scale(1.15); }
-    66%{ transform:translate(-4vw, 10vh) scale(.9); }
-  }
-  @keyframes driftB{
-    0%, 100%{ transform:translate(0, 0) scale(1); }
-    40%{ transform:translate(-10vw, -8vh) scale(1.1); }
-    75%{ transform:translate(-3vw, -14vh) scale(.95); }
-  }
-  @keyframes driftC{
-    0%, 100%{ transform:translate(0, 0) scale(1); }
-    50%{ transform:translate(-6vw, 8vh) scale(1.2); }
-  }
-  @media (prefers-reduced-motion: reduce){
-    .ambient-blob{ animation:none; }
   }
 
   /* ---------- BOOT ---------- */
