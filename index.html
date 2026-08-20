@@ -172,10 +172,17 @@
   .clock .date{ font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.1em; }
   .live{ display:flex; align-items:center; gap:7px; }
   .live .dot{
+    position:relative;
     width:7px; height:7px; border-radius:50%;
     background:var(--rose-bright);
-    box-shadow:0 0 0 0 rgba(225,29,72,.6);
+  }
+  .live .dot::after{
+    content:'';
+    position:absolute; inset:0;
+    border-radius:50%;
+    background:var(--rose-bright);
     animation:pulse 2s infinite;
+    will-change:transform, opacity;
   }
   .live .txt{
     font-family:'JetBrains Mono', monospace;
@@ -183,9 +190,9 @@
     color:var(--text-dim); text-transform:uppercase;
   }
   @keyframes pulse{
-    0%{ box-shadow:0 0 0 0 rgba(225,29,72,.5); }
-    70%{ box-shadow:0 0 0 8px rgba(225,29,72,0); }
-    100%{ box-shadow:0 0 0 0 rgba(225,29,72,0); }
+    0%{ transform:scale(1); opacity:.6; }
+    70%{ transform:scale(2.4); opacity:0; }
+    100%{ transform:scale(2.4); opacity:0; }
   }
 
   main{
