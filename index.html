@@ -3189,6 +3189,25 @@
   }
   augmentNewsTile();
 
+  // The embedded live YouTube player keeps streaming even when this tab is
+  // in the background, competing for bandwidth with video playing in other
+  // tabs. Pausing it (by clearing src) when hidden, and only reloading it
+  // when this tab is actually visible again, stops that entirely.
+  let liveFeedSrcBeforeHide = null;
+  document.addEventListener('visibilitychange', () => {
+    const iframe = document.getElementById('liveFeedIframe');
+    if(!iframe) return;
+    if(document.hidden){
+      if(iframe.src){
+        liveFeedSrcBeforeHide = iframe.src;
+        iframe.src = '';
+      }
+    } else if(liveFeedSrcBeforeHide){
+      iframe.src = liveFeedSrcBeforeHide;
+      liveFeedSrcBeforeHide = null;
+    }
+  });
+
   // ---- Mastering (Firebase Realtime Database) ----
   // First pass: show the raw data structure so we can see the real shape
   // and refine the rendering to match actual field names.
