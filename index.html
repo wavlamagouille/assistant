@@ -364,6 +364,16 @@
   .conv-download-icon-btn:hover{ background:var(--rose-bright); color:#18181b; border-color:var(--rose-bright); }
   .conv-download-icon-btn:active{ transform:scale(.92); }
 
+  .conv-progress-wrap{
+    width:100%; height:5px; border-radius:3px;
+    background:rgba(255,255,255,.06); overflow:hidden;
+  }
+  .conv-progress-fill{
+    height:100%; width:0%; border-radius:3px;
+    background:linear-gradient(90deg, var(--rose), var(--rose-bright));
+    transition:width .2s ease;
+  }
+
   .tap-circle{
     width:100px; height:100px; border-radius:50%; flex-shrink:0;
     background:var(--rose); border:2px solid var(--rose-bright);
@@ -1180,6 +1190,9 @@
           </select>
         </div>
         <button class="tile-cta" id="audioConvertBtn">Convert</button>
+        <div id="audioProgressWrap" class="conv-progress-wrap" style="display:none;">
+          <div id="audioProgressFill" class="conv-progress-fill"></div>
+        </div>
         <div id="audioMsg" class="tile-hint" style="display:none;"></div>
         <div id="audioDownloadWrap" style="display:none; align-items:center; gap:8px;">
           <a id="audioDownloadLink" class="conv-download-icon-btn" title="Download">
@@ -1209,6 +1222,9 @@
           <span id="imageQualityLabel" class="tile-hint" style="color:var(--text-dim); width:36px;">85%</span>
         </div>
         <button class="tile-cta" id="imageConvertBtn">Convert</button>
+        <div id="imageProgressWrap" class="conv-progress-wrap" style="display:none;">
+          <div id="imageProgressFill" class="conv-progress-fill"></div>
+        </div>
         <div id="imageMsg" class="tile-hint" style="display:none;"></div>
         <div id="imagePreviewWrap" style="display:none; align-items:center; gap:10px;">
           <img id="imagePreview" style="width:44px; height:44px; object-fit:cover; border-radius:3px; border:1px solid var(--line); flex-shrink:0;">
@@ -3927,18 +3943,25 @@
     return new Blob([arrBuf], { type: 'audio/aiff' });
   }
 
-  function audioBufferToMp3(buffer, bitrate){
+  async function audioBufferToMp3(buffer, bitrate, onProgress){
     const numChannels = Math.min(2, buffer.numberOfChannels);
     const encoder = new lamejs.Mp3Encoder(numChannels, buffer.sampleRate, bitrate);
     const mp3Data = [];
     const blockSize = 1152;
     const left = floatTo16BitPCM(buffer.getChannelData(0));
     const right = numChannels > 1 ? floatTo16BitPCM(buffer.getChannelData(1)) : null;
+    const totalChunks = Math.ceil(left.length / blockSize);
 
-    for(let i = 0; i < left.length; i += blockSize){
+    for(let i = 0, chunk = 0; i < left.length; i += blockSize, chunk++){
       const leftChunk = left.subarray(i, i + blockSize);
       const buf = right ? encoder.encodeBuffer(leftChunk, right.subarray(i, i + blockSize)) : encoder.encodeBuffer(leftChunk);
       if(buf.length > 0) mp3Data.push(buf);
+      // Yield to the event loop periodically so the progress bar can actually
+      // repaint - a tight synchronous loop blocks all rendering until done.
+      if(chunk % 200 === 0){
+        if(onProgress) onProgress(chunk / totalChunks);
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
     const end = encoder.flush();
     if(end.length > 0) mp3Data.push(end);
@@ -3964,6 +3987,8 @@
     const downloadLink = document.getElementById('audioDownloadLink');
     const downloadName = document.getElementById('audioDownloadName');
     const btn = document.getElementById('audioConvertBtn');
+    const progressWrap = document.getElementById('audioProgressWrap');
+    const progressFill = document.getElementById('audioProgressFill');
     msg.style.display = 'none';
     downloadWrap.style.display = 'none';
 
@@ -3974,18 +3999,27 @@
       return;
     }
 
+    const setProgress = (pct) => { progressFill.style.width = Math.min(100, Math.max(0, pct)) + '%'; };
     btn.textContent = 'Converting…';
     btn.disabled = true;
+    progressWrap.style.display = 'block';
+    setProgress(0);
     try{
       const file = fileInput.files[0];
       const arrayBuffer = await file.arrayBuffer();
+      setProgress(15);
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      setProgress(30);
 
       let blob, ext;
-      if(format === 'wav'){ blob = audioBufferToWav(audioBuffer); ext = 'wav'; }
-      else if(format === 'aiff'){ blob = audioBufferToAiff(audioBuffer); ext = 'aiff'; }
-      else { blob = audioBufferToMp3(audioBuffer, bitrate); ext = 'mp3'; }
+      if(format === 'wav'){ blob = audioBufferToWav(audioBuffer); ext = 'wav'; setProgress(95); }
+      else if(format === 'aiff'){ blob = audioBufferToAiff(audioBuffer); ext = 'aiff'; setProgress(95); }
+      else {
+        blob = await audioBufferToMp3(audioBuffer, bitrate, (frac) => setProgress(30 + frac * 65));
+        ext = 'mp3';
+      }
+      setProgress(100);
 
       const baseName = file.name.replace(/\.[^.]+$/, '');
       const fileName = `${baseName}.${ext}`;
@@ -4000,6 +4034,7 @@
       msg.style.color = 'var(--rose-bright)';
       msg.style.display = 'block';
     }
+    setTimeout(() => { progressWrap.style.display = 'none'; setProgress(0); }, 500);
     btn.textContent = 'Convert';
     btn.disabled = false;
   });
@@ -4029,6 +4064,8 @@
     const msg = document.getElementById('imageMsg');
     const previewWrap = document.getElementById('imagePreviewWrap');
     const btn = document.getElementById('imageConvertBtn');
+    const progressWrap = document.getElementById('imageProgressWrap');
+    const progressFill = document.getElementById('imageProgressFill');
     msg.style.display = 'none';
     previewWrap.style.display = 'none';
 
@@ -4039,8 +4076,11 @@
       return;
     }
 
+    const setProgress = (pct) => { progressFill.style.width = Math.min(100, Math.max(0, pct)) + '%'; };
     btn.textContent = 'Converting…';
     btn.disabled = true;
+    progressWrap.style.display = 'block';
+    setProgress(0);
     try{
       const file = fileInput.files[0];
       const dataUrl = await new Promise((resolve, reject) => {
@@ -4049,12 +4089,14 @@
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+      setProgress(25);
       const img = await new Promise((resolve, reject) => {
         const image = new Image();
         image.onload = () => resolve(image);
         image.onerror = reject;
         image.src = dataUrl;
       });
+      setProgress(50);
 
       let { width, height } = img;
       if(maxWidth && width > maxWidth){
@@ -4072,10 +4114,12 @@
         ctx2d.fillRect(0, 0, width, height);
       }
       ctx2d.drawImage(img, 0, 0, width, height);
+      setProgress(75);
 
       const mimeType = format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
       const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, format === 'png' ? undefined : quality));
       if(!blob) throw new Error('Encoding failed (format may be unsupported by your browser).');
+      setProgress(100);
 
       const ext = format === 'jpeg' ? 'jpg' : format;
       const baseName = file.name.replace(/\.[^.]+$/, '');
@@ -4093,6 +4137,7 @@
       msg.style.color = 'var(--rose-bright)';
       msg.style.display = 'block';
     }
+    setTimeout(() => { progressWrap.style.display = 'none'; setProgress(0); }, 500);
     btn.textContent = 'Convert';
     btn.disabled = false;
   });
