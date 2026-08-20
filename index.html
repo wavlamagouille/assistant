@@ -900,8 +900,12 @@
   <div class="modal-backdrop" id="radarModalBackdrop">
     <div class="modal-panel">
       <div class="modal-head">
-        <div class="modal-title">RAIN RADAR — LAST 2H</div>
+        <div class="modal-title" id="radarModalTitle">RAIN RADAR — PAST 2H</div>
         <button class="modal-close" id="radarModalClose">✕</button>
+      </div>
+      <div class="transit-mode-toggle" id="radarModeToggle" style="margin:0 20px;">
+        <button class="transit-mode-btn active" data-radar-mode="past">Past 2H</button>
+        <button class="transit-mode-btn" data-radar-mode="future">Next 6H</button>
       </div>
       <div id="radarModalMap" class="radar-modal-map"></div>
       <div class="radar-controls">
@@ -910,7 +914,7 @@
         <span class="tile-idx" id="radarFrameLabel">—</span>
       </div>
       <div class="precip-outlook-wrap">
-        <div class="precip-outlook-label">24H FORECAST OUTLOOK — for future rain, use this, not the radar above</div>
+        <div class="precip-outlook-label">24H FORECAST OUTLOOK</div>
         <div id="precipSummary" class="precip-summary"></div>
         <div id="precipOutlook" class="precip-outlook"></div>
       </div>
@@ -1612,6 +1616,7 @@
   // unsupported levels (that's what caused the earlier "zoom level not supported").
   let radarMapInstance = null, radarLayer = null, radarMarker = null;
   let radarFrames = [], radarFrameIdx = 0, radarTimer = null, rainviewerHost = '';
+  let radarMode = 'past';
 
   let leafletLoadPromise = null;
   function ensureLeaflet(){
@@ -1650,6 +1655,16 @@
           stopRadarPlay();
           showRadarFrame(parseInt(e.target.value, 10));
         });
+        document.querySelectorAll('#radarModeToggle .transit-mode-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            stopRadarPlay();
+            radarMode = btn.dataset.radarMode;
+            document.querySelectorAll('#radarModeToggle .transit-mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+            document.getElementById('radarModalTitle').textContent = radarMode === 'past' ? 'RAIN RADAR — PAST 2H' : 'RAIN RADAR — NEXT 6H';
+            loadRadarFrames();
+          });
+        });
 
         await loadRadarFrames();
       } else {
@@ -1670,14 +1685,30 @@
   }
 
   async function loadRadarFrames(){
+    if(radarMode === 'future'){
+      // OpenWeatherMap's forecast radar requires timestamps in exact 10-minute
+      // steps, and only supports up to ~6h ahead - confirmed in their docs.
+      const now = Math.floor(Date.now() / 1000);
+      const rounded = now - (now % 600);
+      radarFrames = [];
+      for(let i = 1; i <= 12; i++){
+        radarFrames.push({ time: rounded + i * 1800, source: 'openweather' }); // 12 x 30min = 6h
+      }
+      radarFrameIdx = 0;
+      const slider = document.getElementById('radarSlider');
+      slider.max = radarFrames.length - 1;
+      slider.value = 0;
+      showRadarFrame(0);
+      return;
+    }
     try{
       const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
       const data = await res.json();
       rainviewerHost = data.host;
       // RainViewer's free public API only returns past frames (confirmed in their own
-      // docs: "no forecast/nowcast" on the free tier) — data.radar.nowcast will be empty
-      // here. The 24h outlook below covers future rain instead, using forecast-model data.
-      radarFrames = [...(data.radar.past || []), ...(data.radar.nowcast || [])].slice(-12);
+      // detailed technical docs, despite a marketing FAQ mentioning "nowcast") -
+      // data.radar.nowcast is reliably empty. Future mode uses OpenWeatherMap instead.
+      radarFrames = (data.radar.past || []).slice(-12).map(f => ({ ...f, source: 'rainviewer' }));
       radarFrameIdx = radarFrames.length - 1;
       const slider = document.getElementById('radarSlider');
       slider.max = radarFrames.length - 1;
@@ -1694,7 +1725,9 @@
     if(!radarFrames[idx] || !radarMapInstance) return;
     radarFrameIdx = idx;
     const frame = radarFrames[idx];
-    const url = `${rainviewerHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+    const url = frame.source === 'openweather'
+      ? `/api/radar-forecast?z={z}&x={x}&y={y}&tm=${frame.time}`
+      : `${rainviewerHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
     if(radarLayer) radarMapInstance.removeLayer(radarLayer);
     radarLayer = L.tileLayer(url, { opacity:0.7, zIndex:5, maxNativeZoom:7, maxZoom:12 }).addTo(radarMapInstance);
     const slider = document.getElementById('radarSlider');
@@ -1702,7 +1735,8 @@
     const label = document.getElementById('radarFrameLabel');
     if(label){
       const d = new Date(frame.time * 1000);
-      label.textContent = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      const prefix = frame.source === 'openweather' ? '+' : '';
+      label.textContent = prefix + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
     }
   }
 
