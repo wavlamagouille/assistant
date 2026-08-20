@@ -37,27 +37,23 @@
   }
   ::selection{ background:var(--rose); color:#fff; }
 
-  body::before{
-    content:'';
-    position:fixed; inset:0;
-    z-index:9999;
-    pointer-events:none;
-    opacity:.035;
-    mix-blend-mode:overlay;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  }
-
   .ambient-bg{
     position:fixed; inset:0;
     pointer-events:none;
     overflow:hidden;
+    /* isolate this layer from the rest of the page so unrelated updates
+       elsewhere (e.g. the clock ticking every second) never force a
+       repaint of the expensive blur below */
+    transform:translateZ(0);
+    contain:strict;
   }
   .ambient-blob{
     position:absolute;
-    width:45vw; height:45vw;
+    width:38vw; height:38vw;
     border-radius:50%;
-    filter:blur(90px);
+    filter:blur(60px);
     opacity:.10;
+    transform:translateZ(0);
   }
   .ambient-blob:nth-child(1){
     background:var(--rose);
@@ -70,7 +66,7 @@
   .ambient-blob:nth-child(3){
     background:#fbbf24;
     top:35%; left:55%;
-    width:35vw; height:35vw;
+    width:28vw; height:28vw;
     opacity:.06;
   }
 
