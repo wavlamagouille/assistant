@@ -395,6 +395,68 @@
   .transit-mode-btn:hover{ color:var(--text); }
   .transit-mode-btn.active{ color:var(--rose-bright); border-color:var(--rose-bright); background:rgba(225,29,72,.1); }
 
+  .conv-result-card{
+    width:100%; margin-top:8px; padding:14px 16px;
+    background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:3px;
+  }
+  .conv-equation-line{ font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--text-dim); margin-bottom:4px; }
+  .conv-result-value{ font-family:'JetBrains Mono', monospace; font-size:28px; color:var(--text); }
+
+  .conv-file-picker{ display:flex; align-items:center; gap:10px; }
+  .conv-file-input-hidden{
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+  }
+  .conv-file-btn{ margin-top:0; flex-shrink:0; }
+  .conv-file-label{ font-size:12px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+
+  .conv-download-icon-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:32px; height:32px; flex-shrink:0;
+    background:none; border:1px solid var(--rose); color:var(--rose-bright);
+    border-radius:3px; cursor:pointer;
+    transition:background .15s ease, color .15s ease, transform .1s ease;
+  }
+  .conv-download-icon-btn:hover{ background:var(--rose-bright); color:#18181b; border-color:var(--rose-bright); }
+  .conv-download-icon-btn:active{ transform:scale(.92); }
+
+  .tap-circle{
+    width:100px; height:100px; border-radius:50%; flex-shrink:0;
+    background:var(--rose); border:2px solid var(--rose-bright);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    cursor:pointer; color:#fff;
+    transition:transform .1s ease, background .15s ease, box-shadow .15s ease;
+  }
+  .tap-circle:hover{ background:var(--rose-bright); box-shadow:0 0 20px rgba(225,29,72,.4); }
+  .tap-circle:active{ transform:scale(.93); }
+  .tap-bpm-value{ font-family:'JetBrains Mono', monospace; font-size:26px; line-height:1; }
+  .tap-bpm-label{ font-family:'JetBrains Mono', monospace; font-size:9px; letter-spacing:.1em; text-transform:uppercase; opacity:.8; margin-top:3px; }
+
+  .weather-stats-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:6px 10px;
+    width:100%; margin-top:6px;
+  }
+  .weather-stat{ display:flex; flex-direction:column; gap:1px; }
+  .weather-stat-label{ font-family:'JetBrains Mono', monospace; font-size:9px; letter-spacing:.05em; color:var(--text-dim); text-transform:uppercase; }
+  .weather-stat-value{ font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--text); }
+
+  .timer-play-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:34px; height:34px; flex-shrink:0; border-radius:50%;
+    background:var(--rose); border:2px solid var(--rose-bright); color:#fff;
+    cursor:pointer; transition:background .15s ease, transform .1s ease;
+  }
+  .timer-play-btn svg{ margin-left:1px; }
+  .timer-play-btn:hover{ background:var(--rose-bright); }
+  .timer-play-btn:active{ transform:scale(.9); }
+  .timer-preset-btn{
+    background:var(--bg); border:1px solid var(--line); color:var(--text-dim);
+    padding:4px 8px; font-size:10px; border-radius:3px; cursor:pointer;
+    transition:color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .timer-preset-btn:hover{ color:var(--text); }
+  .timer-preset-btn.active{ color:var(--rose-bright); border-color:var(--rose-bright); background:rgba(225,29,72,.1); }
+
   .live-feed-section{ width:100%; padding-top:10px; margin-top:10px; border-top:1px solid var(--line); }
   .live-feed-row{ display:flex; gap:8px; margin-bottom:8px; }
   .live-feed-frame-wrap{ position:relative; width:100%; padding-top:56.25%; max-height:200px; background:#000; border-radius:3px; overflow:hidden; }
@@ -444,13 +506,6 @@
     transition:background .15s ease;
   }
   .news-resize-handle:hover::before{ background:var(--rose-bright); }
-  .timer-preset-btn{
-    background:var(--bg); border:1px solid var(--line); color:var(--text-dim);
-    padding:6px 10px; font-size:11px; border-radius:3px; cursor:pointer;
-    transition:color .15s ease, border-color .15s ease, background .15s ease;
-  }
-  .timer-preset-btn:hover{ color:var(--text); }
-  .timer-preset-btn.active{ color:var(--rose-bright); border-color:var(--rose-bright); background:rgba(225,29,72,.1); }
   .precip-outlook{ display:flex; align-items:flex-end; gap:3px; height:56px; }
   .precip-bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:3px; }
   .precip-bar{ width:100%; max-width:14px; background:var(--rose-bright); opacity:.75; border-radius:1px 1px 0 0; min-height:2px; }
@@ -1037,7 +1092,7 @@
     { id:'agenda',   name:'CALENDAR',   idx:'03', hint:'Upcoming Google Calendar events.' },
     { id:'markets',  name:'MARKETS',    idx:'04', hint:'Tracked crypto & asset prices, with charts.' },
     { id:'news',     name:'NEWS',       idx:'05', hint:'BBC, CoinDesk, and Attack Magazine headlines.' },
-    { id:'mastering',name:'MASTERING',  idx:'06', hint:'Status of Wavaudiolab client submissions.' },
+    { id:'mastering',name:'WAVAUDIOLAB JOBS',  idx:'06', hint:'Status of Wavaudiolab client submissions.' },
     { id:'transit',  name:'TRANSIT',    idx:'08', hint:'Swiss public transport connections (CFF & more).' },
   ];
 
@@ -1055,8 +1110,8 @@
     tasks:   { w:7,  h:7 },
     transit: { w:6,  h:5 },
     converter:{ w:4, h:7 },
-    timer:   { w:4,  h:4 },
-    taptempo:{ w:4,  h:4 }
+    timer:   { w:3,  h:3 },
+    taptempo:{ w:3,  h:3 }
   };
 
   let tileEnterCount = 0;
@@ -1136,13 +1191,13 @@
     </div>
     <div style="width:100%; display:flex; flex-direction:column; gap:8px;">
       <div class="transit-mode-toggle" id="convCatToggle" style="flex-wrap:wrap;">
+        <button class="transit-mode-btn" data-cat="audio">Audio</button>
+        <button class="transit-mode-btn" data-cat="image">Image</button>
         <button class="transit-mode-btn active" data-cat="currency">Currency</button>
         <button class="transit-mode-btn" data-cat="length">Length</button>
         <button class="transit-mode-btn" data-cat="weight">Weight</button>
         <button class="transit-mode-btn" data-cat="temp">Temp</button>
         <button class="transit-mode-btn" data-cat="volume">Volume</button>
-        <button class="transit-mode-btn" data-cat="audio">Audio</button>
-        <button class="transit-mode-btn" data-cat="image">Image</button>
       </div>
 
       <div id="convNumericPanel">
@@ -1152,12 +1207,19 @@
           <span style="align-self:center; color:var(--text-dim);">→</span>
           <select id="convTo" class="transit-input" style="width:80px;"></select>
         </div>
-        <div id="convResult" style="font-family:'JetBrains Mono',monospace; font-size:28px; color:var(--text); margin-top:8px;">—</div>
+        <div class="conv-result-card">
+          <div id="convEquationLine" class="conv-equation-line"></div>
+          <div id="convResult" class="conv-result-value">—</div>
+        </div>
         <div id="convMeta" class="tile-hint" style="color:var(--text-dim);"></div>
       </div>
 
       <div id="convAudioPanel" style="display:none; flex-direction:column; gap:8px;">
-        <input id="audioFileInput" type="file" accept="audio/*" class="transit-input" style="padding:6px;">
+        <div class="conv-file-picker">
+          <input id="audioFileInput" type="file" accept="audio/*" class="conv-file-input-hidden">
+          <button class="tile-cta conv-file-btn" id="audioFileBtn" type="button">Choose File</button>
+          <span id="audioFileLabel" class="conv-file-label">No file selected</span>
+        </div>
         <div style="display:flex; gap:8px;">
           <select id="audioFormat" class="transit-input" style="flex:1;">
             <option value="wav">WAV</option>
@@ -1173,11 +1235,20 @@
         </div>
         <button class="tile-cta" id="audioConvertBtn">Convert</button>
         <div id="audioMsg" class="tile-hint" style="display:none;"></div>
-        <a id="audioDownloadLink" style="display:none; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--rose-bright); text-decoration:none;">Download</a>
+        <div id="audioDownloadWrap" style="display:none; align-items:center; gap:8px;">
+          <a id="audioDownloadLink" class="conv-download-icon-btn" title="Download">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          </a>
+          <span id="audioDownloadName" class="tile-hint" style="color:var(--text-dim); word-break:break-word;"></span>
+        </div>
       </div>
 
       <div id="convImagePanel" style="display:none; flex-direction:column; gap:8px;">
-        <input id="imageFileInput" type="file" accept="image/*" class="transit-input" style="padding:6px;">
+        <div class="conv-file-picker">
+          <input id="imageFileInput" type="file" accept="image/*" class="conv-file-input-hidden">
+          <button class="tile-cta conv-file-btn" id="imageFileBtn" type="button">Choose File</button>
+          <span id="imageFileLabel" class="conv-file-label">No file selected</span>
+        </div>
         <div style="display:flex; gap:8px;">
           <select id="imageFormat" class="transit-input" style="flex:1;">
             <option value="jpeg">JPG</option>
@@ -1194,8 +1265,11 @@
         <button class="tile-cta" id="imageConvertBtn">Convert</button>
         <div id="imageMsg" class="tile-hint" style="display:none;"></div>
         <div id="imagePreviewWrap" style="display:none; align-items:center; gap:10px;">
-          <img id="imagePreview" style="width:60px; height:60px; object-fit:cover; border-radius:3px; border:1px solid var(--line);">
-          <a id="imageDownloadLink" style="font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--rose-bright); text-decoration:none;">Download</a>
+          <img id="imagePreview" style="width:44px; height:44px; object-fit:cover; border-radius:3px; border:1px solid var(--line); flex-shrink:0;">
+          <a id="imageDownloadLink" class="conv-download-icon-btn" title="Download">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          </a>
+          <span id="imageDownloadName" class="tile-hint" style="color:var(--text-dim); word-break:break-word;"></span>
         </div>
       </div>
     </div>
@@ -1210,17 +1284,19 @@
       <div class="tile-name">TIMER</div>
       <div class="tile-head-right"><div class="tile-idx">10</div></div>
     </div>
-    <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:14px; flex:1; justify-content:center;">
-      <div id="timerDisplay" style="font-family:'JetBrains Mono',monospace; font-size:44px; color:var(--text);">25:00</div>
-      <div id="timerPresets" style="display:flex; gap:6px;">
-        <button class="tile-cta timer-preset-btn" data-mins="5" style="margin-top:0;">5m</button>
-        <button class="tile-cta timer-preset-btn" data-mins="15" style="margin-top:0;">15m</button>
-        <button class="tile-cta timer-preset-btn active" data-mins="25" style="margin-top:0;">25m</button>
-        <button class="tile-cta timer-preset-btn" data-mins="45" style="margin-top:0;">45m</button>
+    <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:10px; flex:1; justify-content:center;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div id="timerDisplay" style="font-family:'JetBrains Mono',monospace; font-size:32px; color:var(--text);">25:00</div>
+        <button id="timerStartBtn" class="timer-play-btn" title="Start">
+          <svg id="timerPlayIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+          <svg id="timerPauseIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        </button>
       </div>
-      <div style="display:flex; gap:8px;">
-        <button class="tile-cta" id="timerStartBtn" style="margin-top:0;">Start</button>
-        <button class="tile-cta" id="timerResetBtn" style="margin-top:0;">Reset</button>
+      <div id="timerPresets" style="display:flex; gap:4px;">
+        <button class="timer-preset-btn" data-mins="5">5m</button>
+        <button class="timer-preset-btn" data-mins="15">15m</button>
+        <button class="timer-preset-btn active" data-mins="25">25m</button>
+        <button class="timer-preset-btn" data-mins="45">45m</button>
       </div>
     </div>
   `;
@@ -1234,11 +1310,14 @@
       <div class="tile-name">TAP TEMPO</div>
       <div class="tile-head-right"><div class="tile-idx">12</div></div>
     </div>
-    <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; justify-content:center;">
-      <div id="tapBpm" style="font-family:'JetBrains Mono',monospace; font-size:44px; color:var(--text);">—</div>
-      <div class="tile-hint" style="color:var(--text-dim);">BPM</div>
-      <button class="tile-cta" id="tapBtn" style="margin-top:10px; padding:14px 40px; font-size:13px;">TAP (or press space)</button>
-      <button class="tile-cta" id="tapResetBtn" style="margin-top:4px;">Reset</button>
+    <div style="width:100%; display:flex; flex-direction:column; align-items:center; gap:10px; flex:1; justify-content:center;">
+      <button id="tapBtn" class="tap-circle" title="Tap (or press space)">
+        <span id="tapBpm" class="tap-bpm-value">—</span>
+        <span class="tap-bpm-label">BPM</span>
+      </button>
+      <button class="icon-refresh-btn" id="tapResetBtn" title="Reset">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 1 3 6.7"/><polyline points="3 16 3 21 8 21"/></svg>
+      </button>
     </div>
   `;
   grid.appendChild(wrapAsGridItem('taptempo', tapTempoTile));
@@ -1427,29 +1506,32 @@
     const sunset = daily.sunset ? new Date(daily.sunset[dayIndex]).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : null;
 
     const topLine = isToday
-      ? `<div style="display:flex; align-items:center; gap:16px;">
-          <span style="display:inline-flex; width:44px; height:44px; flex-shrink:0;">${iconSvg}</span>
-          <div style="display:flex; align-items:baseline; gap:10px;">
-            <span style="font-family:'JetBrains Mono',monospace; font-size:44px; color:var(--text);">${Math.round(data.current.temperature_2m)}°</span>
-            <span style="font-size:13px; color:var(--text-mid);">feels like ${Math.round(data.current.apparent_temperature)}°</span>
+      ? `<div style="display:flex; align-items:center; gap:12px;">
+          <span style="display:inline-flex; width:34px; height:34px; flex-shrink:0;">${iconSvg}</span>
+          <div style="display:flex; align-items:baseline; gap:8px;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:32px; color:var(--text);">${Math.round(data.current.temperature_2m)}°</span>
+            <span style="font-size:11px; color:var(--text-mid);">feels ${Math.round(data.current.apparent_temperature)}°</span>
           </div>
         </div>
-        <div class="tile-hint">${desc} · wind ${Math.round(data.current.wind_speed_10m)} km/h</div>`
-      : `<div style="display:flex; align-items:center; gap:16px;">
-          <span style="display:inline-flex; width:44px; height:44px; flex-shrink:0;">${iconSvg}</span>
-          <div style="display:flex; align-items:baseline; gap:10px;">
-            <span style="font-family:'JetBrains Mono',monospace; font-size:44px; color:var(--text);">${tmax}°</span>
-            <span style="font-size:13px; color:var(--text-mid);">low ${tmin}°</span>
+        <div class="tile-hint" style="margin-top:2px;">${desc} · wind ${Math.round(data.current.wind_speed_10m)} km/h</div>`
+      : `<div style="display:flex; align-items:center; gap:12px;">
+          <span style="display:inline-flex; width:34px; height:34px; flex-shrink:0;">${iconSvg}</span>
+          <div style="display:flex; align-items:baseline; gap:8px;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:32px; color:var(--text);">${tmax}°</span>
+            <span style="font-size:11px; color:var(--text-mid);">low ${tmin}°</span>
           </div>
         </div>
-        <div class="tile-hint">${desc}</div>`;
+        <div class="tile-hint" style="margin-top:2px;">${desc}</div>`;
 
     bodyEl.innerHTML = `
       ${renderWeatherDaySelectorHTML()}
       ${topLine}
-      <div class="tile-hint" style="color:var(--text-dim);">day ${tmax}° / night ${tmin}°</div>
-      ${rainChance != null ? `<div class="tile-hint" style="color:${rainChance >= 50 ? 'var(--rose-bright)' : 'var(--text-dim)'}; font-family:'JetBrains Mono',monospace;">☔ ${rainChance}% chance of rain</div>` : ''}
-      ${sunrise && sunset ? `<div class="tile-hint" style="color:var(--text-dim); font-family:'JetBrains Mono',monospace;">☀ ${sunrise} · ☾ ${sunset}</div>` : ''}
+      <div class="weather-stats-grid">
+        <div class="weather-stat"><span class="weather-stat-label">Day / Night</span><span class="weather-stat-value">${tmax}° / ${tmin}°</span></div>
+        <div class="weather-stat"><span class="weather-stat-label">Rain chance</span><span class="weather-stat-value" style="color:${rainChance != null && rainChance >= 50 ? 'var(--rose-bright)' : 'var(--text)'};">${rainChance != null ? rainChance + '%' : '—'}</span></div>
+        <div class="weather-stat"><span class="weather-stat-label">☀ Sunrise</span><span class="weather-stat-value">${sunrise || '—'}</span></div>
+        <div class="weather-stat"><span class="weather-stat-label">☾ Sunset</span><span class="weather-stat-value">${sunset || '—'}</span></div>
+      </div>
     `;
 
     bodyEl.querySelectorAll('.weather-day-btn').forEach(btn => {
@@ -3688,8 +3770,11 @@
     const from = document.getElementById('convFrom').value;
     const to = document.getElementById('convTo').value;
     const resultEl = document.getElementById('convResult');
+    const equationEl = document.getElementById('convEquationLine');
     const metaEl = document.getElementById('convMeta');
     metaEl.textContent = '';
+    const amountLabel = isNaN(amount) ? '' : amount.toLocaleString('en-US', { maximumFractionDigits:4 });
+    equationEl.textContent = amountLabel ? `${amountLabel} ${from} equals` : '';
     if(isNaN(amount)){ resultEl.textContent = '—'; return; }
 
     if(convCategory === 'currency'){
@@ -3855,16 +3940,27 @@
     return new Blob(mp3Data, { type: 'audio/mp3' });
   }
 
+  document.getElementById('audioFileBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('audioFileInput').click();
+  });
+  document.getElementById('audioFileInput').addEventListener('change', (e) => {
+    const label = document.getElementById('audioFileLabel');
+    label.textContent = e.target.files.length ? e.target.files[0].name : 'No file selected';
+  });
+
   document.getElementById('audioConvertBtn').addEventListener('click', async (e) => {
     e.stopPropagation();
     const fileInput = document.getElementById('audioFileInput');
     const format = document.getElementById('audioFormat').value;
     const bitrate = parseInt(document.getElementById('audioBitrate').value, 10);
     const msg = document.getElementById('audioMsg');
+    const downloadWrap = document.getElementById('audioDownloadWrap');
     const downloadLink = document.getElementById('audioDownloadLink');
+    const downloadName = document.getElementById('audioDownloadName');
     const btn = document.getElementById('audioConvertBtn');
     msg.style.display = 'none';
-    downloadLink.style.display = 'none';
+    downloadWrap.style.display = 'none';
 
     if(!fileInput.files.length){
       msg.textContent = 'Choose a file first.';
@@ -3887,10 +3983,11 @@
       else { blob = audioBufferToMp3(audioBuffer, bitrate); ext = 'mp3'; }
 
       const baseName = file.name.replace(/\.[^.]+$/, '');
+      const fileName = `${baseName}.${ext}`;
       downloadLink.href = URL.createObjectURL(blob);
-      downloadLink.download = `${baseName}.${ext}`;
-      downloadLink.textContent = `Download ${baseName}.${ext}`;
-      downloadLink.style.display = 'block';
+      downloadLink.download = fileName;
+      downloadName.textContent = `${fileName} (${(blob.size/1024/1024).toFixed(2)} MB)`;
+      downloadWrap.style.display = 'flex';
       audioCtx.close();
     }catch(err){
       console.error('audio conversion failed', err);
@@ -3903,6 +4000,14 @@
   });
 
   // ---- Image conversion (Canvas API, fully client-side) ----
+  document.getElementById('imageFileBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('imageFileInput').click();
+  });
+  document.getElementById('imageFileInput').addEventListener('change', (e) => {
+    const label = document.getElementById('imageFileLabel');
+    label.textContent = e.target.files.length ? e.target.files[0].name : 'No file selected';
+  });
   document.getElementById('imageFormat').addEventListener('change', (e) => {
     document.getElementById('imageQualityRow').style.display = e.target.value === 'png' ? 'none' : 'flex';
   });
@@ -3969,12 +4074,13 @@
 
       const ext = format === 'jpeg' ? 'jpg' : format;
       const baseName = file.name.replace(/\.[^.]+$/, '');
+      const fileName = `${baseName}.${ext}`;
       const url = URL.createObjectURL(blob);
       document.getElementById('imagePreview').src = url;
       const downloadLink = document.getElementById('imageDownloadLink');
       downloadLink.href = url;
-      downloadLink.download = `${baseName}.${ext}`;
-      downloadLink.textContent = `Download ${baseName}.${ext} (${(blob.size/1024).toFixed(0)} KB)`;
+      downloadLink.download = fileName;
+      document.getElementById('imageDownloadName').textContent = `${fileName} (${(blob.size/1024).toFixed(0)} KB)`;
       previewWrap.style.display = 'flex';
     }catch(err){
       console.error('image conversion failed', err);
@@ -4013,39 +4119,44 @@
     });
   });
 
+  function setTimerPlayIcon(playing){
+    document.getElementById('timerPlayIcon').style.display = playing ? 'none' : 'block';
+    document.getElementById('timerPauseIcon').style.display = playing ? 'block' : 'none';
+    document.getElementById('timerStartBtn').title = playing ? 'Pause' : 'Start';
+  }
+
   document.getElementById('timerStartBtn').addEventListener('click', (e) => {
     e.stopPropagation();
-    const btn = document.getElementById('timerStartBtn');
     if(timerRunning){
       clearInterval(timerInterval);
       timerRunning = false;
-      btn.textContent = 'Start';
+      setTimerPlayIcon(false);
       return;
     }
     timerRunning = true;
-    btn.textContent = 'Pause';
+    setTimerPlayIcon(true);
     timerInterval = setInterval(() => {
       timerRemaining--;
       updateTimerDisplay();
       if(timerRemaining <= 0){
         clearInterval(timerInterval);
         timerRunning = false;
-        btn.textContent = 'Start';
+        setTimerPlayIcon(false);
         document.getElementById('timerDisplay').style.color = 'var(--rose-bright)';
         setTimeout(() => { document.getElementById('timerDisplay').style.color = ''; }, 3000);
       }
     }, 1000);
   });
 
-  document.getElementById('timerResetBtn').addEventListener('click', (e) => {
-    e.stopPropagation();
+  function resetTimer(){
     clearInterval(timerInterval);
     timerRunning = false;
-    document.getElementById('timerStartBtn').textContent = 'Start';
+    setTimerPlayIcon(false);
     timerRemaining = timerTotalSeconds;
     document.getElementById('timerDisplay').style.color = '';
     updateTimerDisplay();
-  });
+  }
+  addRefreshIcon('timer', resetTimer);
 
   // ---- QR code generator (fully client-side, nothing ever sent anywhere) ----
   let qrDebounce = null;
