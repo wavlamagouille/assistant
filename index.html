@@ -2119,35 +2119,63 @@
 
     let lastSearchResults = [];
 
+    const searchCache = new Map(); // avoid re-hitting the API for a query already searched this session
+
     stockInput.addEventListener('input', () => {
       const q = stockInput.value.trim();
       clearTimeout(stockDebounce);
       hideStockMsg();
-      if(q.length < 1){ stockSuggBox.classList.remove('show'); return; }
+      // Require 2+ characters - a single letter is rarely useful and just
+      // burns calls against a very tight rate limit (keyless CoinGecko is
+      // 5-30/min, shared across everyone on the same IP).
+      if(q.length < 2){ stockSuggBox.classList.remove('show'); return; }
+
+      const cacheKey = q.toLowerCase();
+      if(searchCache.has(cacheKey)){
+        lastSearchResults = searchCache.get(cacheKey);
+        renderStockSuggestions();
+        return;
+      }
+
       stockDebounce = setTimeout(async () => {
         try{
           const res = await fetchWithTimeout(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`, null, 6000);
+          if(res.status === 429){
+            showStockMsg('Search is rate-limited right now (free CoinGecko access is very restricted) - wait a moment and try again, or add a CoinGecko Demo API key for a much higher limit.');
+            stockSuggBox.classList.remove('show');
+            return;
+          }
+          if(!res.ok) throw new Error('HTTP ' + res.status);
           const data = await res.json();
           lastSearchResults = (data.coins || []).slice(0, 8);
-          if(!lastSearchResults.length){ stockSuggBox.classList.remove('show'); return; }
-          stockSuggBox.innerHTML = lastSearchResults.map((m, i) => `
-            <div class="city-suggestion" data-idx="${i}">
-              <span class="cs-name">${m.symbol.toUpperCase()}</span>
-              <span class="cs-region">${m.name}</span>
-            </div>
-          `).join('');
-          stockSuggBox.classList.add('show');
-          stockSuggBox.querySelectorAll('.city-suggestion').forEach((el, i) => {
-            el.addEventListener('click', (e) => {
-              e.stopPropagation();
-              stockInput.value = lastSearchResults[i].symbol.toUpperCase();
-              stockSuggBox.classList.remove('show');
-              addTrackedCoin(lastSearchResults[i].id, lastSearchResults[i].symbol.toUpperCase());
-            });
-          });
-        }catch(err){ console.error('coin search failed', err); }
-      }, 300);
+          searchCache.set(cacheKey, lastSearchResults);
+          renderStockSuggestions();
+        }catch(err){
+          console.error('coin search failed', err);
+          showStockMsg('Search failed: ' + err.message);
+          stockSuggBox.classList.remove('show');
+        }
+      }, 500);
     });
+
+    function renderStockSuggestions(){
+      if(!lastSearchResults.length){ stockSuggBox.classList.remove('show'); return; }
+      stockSuggBox.innerHTML = lastSearchResults.map((m, i) => `
+        <div class="city-suggestion" data-idx="${i}">
+          <span class="cs-name">${m.symbol.toUpperCase()}</span>
+          <span class="cs-region">${m.name}</span>
+        </div>
+      `).join('');
+      stockSuggBox.classList.add('show');
+      stockSuggBox.querySelectorAll('.city-suggestion').forEach((el, i) => {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          stockInput.value = lastSearchResults[i].symbol.toUpperCase();
+          stockSuggBox.classList.remove('show');
+          addTrackedCoin(lastSearchResults[i].id, lastSearchResults[i].symbol.toUpperCase());
+        });
+      });
+    }
 
     document.addEventListener('click', (e) => {
       if(!e.target.closest('#stockSearchInput') && !e.target.closest('#stockSuggestions')){
