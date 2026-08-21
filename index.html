@@ -1293,9 +1293,6 @@
         <span id="tapBpm" class="tap-bpm-value">—</span>
         <span class="tap-bpm-label">BPM</span>
       </button>
-      <button class="icon-refresh-btn" id="tapResetBtn" title="Reset">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 1 3 6.7"/><polyline points="3 16 3 21 8 21"/></svg>
-      </button>
     </div>
   `;
   grid.appendChild(wrapAsGridItem('taptempo', tapTempoTile));
@@ -4300,8 +4297,7 @@
     }
   }
   document.getElementById('tapBtn').addEventListener('click', (e) => { e.stopPropagation(); registerTap(); });
-  document.getElementById('tapResetBtn').addEventListener('click', (e) => {
-    e.stopPropagation();
+  addRefreshIcon('taptempo', () => {
     tapTimes = [];
     document.getElementById('tapBpm').textContent = '—';
   });
