@@ -2037,7 +2037,7 @@
     } else {
       try{
         const ids = TRACKED_COINS.map(c => c.id).join(',');
-        const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&sparkline=true&price_change_percentage=24h`;
+        const url = `/api/coingecko?endpoint=coins/markets&vs_currency=usd&ids=${ids}&sparkline=true&price_change_percentage=24h`;
         const res = await fetch(url);
         if(!res.ok) throw new Error('HTTP '+res.status);
         const data = await res.json();
@@ -2139,7 +2139,7 @@
 
       stockDebounce = setTimeout(async () => {
         try{
-          const res = await fetchWithTimeout(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`, null, 6000);
+          const res = await fetchWithTimeout(`/api/coingecko?endpoint=search&query=${encodeURIComponent(q)}`, null, 6000);
           if(res.status === 429){
             showStockMsg('Search is rate-limited right now (free CoinGecko access is very restricted) - wait a moment and try again, or add a CoinGecko Demo API key for a much higher limit.');
             stockSuggBox.classList.remove('show');
