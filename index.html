@@ -1064,7 +1064,7 @@
     tasks:   { w:7,  h:7 },
     transit: { w:6,  h:5 },
     converter:{ w:4, h:7 },
-    timer:   { w:3,  h:4 },
+    timer:   { w:3,  h:5 },
     taptempo:{ w:3,  h:3 }
   };
 
@@ -1259,6 +1259,11 @@
         <button class="timer-preset-btn" data-mins="15">15m</button>
         <button class="timer-preset-btn active" data-mins="25">25m</button>
         <button class="timer-preset-btn" data-mins="45">45m</button>
+      </div>
+      <div style="display:flex; gap:4px; align-items:center;">
+        <input id="timerCustomInput" type="number" min="1" max="999" placeholder="Custom" class="transit-input" style="width:64px; padding:4px 6px; font-size:11px;">
+        <span class="tile-hint" style="color:var(--text-dim);">min</span>
+        <button class="timer-preset-btn" id="timerCustomSetBtn">Set</button>
       </div>
     </div>
   `;
@@ -4163,15 +4168,33 @@
   }
   updateTimerDisplay();
 
-  document.querySelectorAll('.timer-preset-btn').forEach(btn => {
+  document.querySelectorAll('.timer-preset-btn[data-mins]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       if(timerRunning) return;
-      document.querySelectorAll('.timer-preset-btn').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.timer-preset-btn[data-mins]').forEach(b => b.classList.toggle('active', b === btn));
       timerTotalSeconds = parseInt(btn.dataset.mins, 10) * 60;
       timerRemaining = timerTotalSeconds;
       updateTimerDisplay();
     });
+  });
+
+  function applyCustomTimerDuration(){
+    if(timerRunning) return;
+    const input = document.getElementById('timerCustomInput');
+    const mins = parseInt(input.value, 10);
+    if(!mins || mins < 1) return;
+    document.querySelectorAll('.timer-preset-btn[data-mins]').forEach(b => b.classList.remove('active'));
+    timerTotalSeconds = mins * 60;
+    timerRemaining = timerTotalSeconds;
+    updateTimerDisplay();
+  }
+  document.getElementById('timerCustomSetBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    applyCustomTimerDuration();
+  });
+  document.getElementById('timerCustomInput').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') applyCustomTimerDuration();
   });
 
   function setTimerPlayIcon(playing){
