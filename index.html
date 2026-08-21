@@ -2705,6 +2705,8 @@
     });
   }
 
+  let mailObserver = null;
+
   function renderMailMessages(bodyEl, msgs, append){
     const rowsHtml = msgs.map(m => `
       <div class="mail-row" data-uid="${m.uid}" style="width:100%; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer;">
@@ -2712,21 +2714,27 @@
         <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${m.from}</div>
       </div>`).join('');
     if(append){
-      const loadMoreBtn = document.getElementById('mailLoadMoreBtn');
-      if(loadMoreBtn) loadMoreBtn.insertAdjacentHTML('beforebegin', rowsHtml);
+      const hint = document.getElementById('mailLoadingMore');
+      if(hint) hint.insertAdjacentHTML('beforebegin', rowsHtml);
       else bodyEl.insertAdjacentHTML('beforeend', rowsHtml);
     } else {
       bodyEl.innerHTML = rowsHtml;
     }
-    const existingBtn = document.getElementById('mailLoadMoreBtn');
-    if(existingBtn) existingBtn.remove();
+    const existingHint = document.getElementById('mailLoadingMore');
+    if(existingHint) existingHint.remove();
+    if(mailObserver) mailObserver.disconnect();
     if(gmailHasMore){
-      bodyEl.insertAdjacentHTML('beforeend', `<button class="tile-cta" id="mailLoadMoreBtn" style="align-self:center;">Load more</button>`);
-      document.getElementById('mailLoadMoreBtn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        gmailOffset += GMAIL_PAGE_SIZE;
-        loadGmail({ append: true });
-      });
+      bodyEl.insertAdjacentHTML('beforeend', `<div id="mailLoadingMore" class="tile-hint" style="color:var(--text-dim); text-align:center; padding:8px 0; width:100%;">Loading more…</div>`);
+      const hintEl = document.getElementById('mailLoadingMore');
+      mailObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if(entry.isIntersecting){
+            gmailOffset += GMAIL_PAGE_SIZE;
+            loadGmail({ append: true });
+          }
+        });
+      }, { root: bodyEl, rootMargin: '150px' });
+      mailObserver.observe(hintEl);
     }
   }
 
