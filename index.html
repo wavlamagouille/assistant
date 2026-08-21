@@ -2999,7 +2999,10 @@
     if(loadingEl) loadingEl.insertAdjacentHTML('beforebegin', html);
     else bodyEl.insertAdjacentHTML('beforeend', html);
     newsShownCount += nextBatch.length;
-    if(loadingEl && newsShownCount >= newsItems.length) loadingEl.remove();
+    if(loadingEl && newsShownCount >= newsItems.length){
+      loadingEl.remove();
+      if(newsObserver) newsObserver.disconnect();
+    }
   }
 
   async function loadNews(){
@@ -3021,6 +3024,7 @@
           ? '<div id="newsLoadingMore" class="tile-hint" style="color:var(--text-dim); text-align:center; padding:8px 0;">Scroll for more…</div>'
           : '';
         renderMoreNews();
+        setupNewsObserver();
       }
       connected.add('news'); refreshCount();
     }catch(err){
@@ -3035,20 +3039,21 @@
   // (has to be, to catch scroll on any tile-body), so without throttling it
   // would re-run its check on every single scroll event from anywhere in the
   // app, including tiles that have nothing to do with News.
-  let newsScrollThrottled = false;
-  document.addEventListener('scroll', (e) => {
-    const el = e.target;
-    if(!el || !el.classList || !el.classList.contains('tile-body')) return;
-    if(!el.closest('[data-module="news"]')) return;
-    if(newsScrollThrottled) return;
-    newsScrollThrottled = true;
-    requestAnimationFrame(() => {
-      if(el.scrollTop + el.clientHeight >= el.scrollHeight - 40){
-        renderMoreNews();
-      }
-      newsScrollThrottled = false;
-    });
-  }, true);
+  // Watches the "Scroll for more..." hint's actual visibility rather than
+  // depending on scroll deltas - a scroll listener can't fire at all if the
+  // container ends up taller than its own content (no real overflow to
+  // scroll into), which happens once the News/video split is dragged large.
+  let newsObserver = null;
+  function setupNewsObserver(){
+    const bodyEl = document.querySelector('[data-module="news"] .tile-body');
+    const hintEl = document.getElementById('newsLoadingMore');
+    if(!bodyEl || !hintEl) return;
+    if(newsObserver) newsObserver.disconnect();
+    newsObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => { if(entry.isIntersecting) renderMoreNews(); });
+    }, { root: bodyEl, rootMargin: '150px' });
+    newsObserver.observe(hintEl);
+  }
 
   const newsBtn = document.querySelector('button[data-module="news"]');
   if(newsBtn) newsBtn.style.display = 'none';
