@@ -516,6 +516,7 @@
 
   /* per-module accent colors, replacing the single universal rose everywhere */
   .tile[data-module="weather"]   { --module-accent:#fbbf24; }
+  .tile[data-module="weather"] .tile-body{ justify-content:space-between; }
   .tile[data-module="mail"]      { --module-accent:#60a5fa; }
   .tile[data-module="agenda"]    { --module-accent:#a78bfa; }
   .tile[data-module="markets"]   { --module-accent:#4ade80; }
@@ -1482,22 +1483,26 @@
     const sunset = daily.sunset ? new Date(daily.sunset[dayIndex]).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' }) : null;
 
     const topLine = isToday
-      ? `<div style="display:flex; align-items:center; gap:10px;">
+      ? `<div class="weather-summary-group">
+          <div style="display:flex; align-items:center; gap:10px;">
           <span style="display:inline-flex; width:28px; height:28px; flex-shrink:0;">${iconSvg}</span>
           <div style="display:flex; align-items:baseline; gap:7px;">
             <span style="font-family:'JetBrains Mono',monospace; font-size:26px; color:var(--text);">${Math.round(data.current.temperature_2m)}°</span>
             <span style="font-size:10px; color:var(--text-mid);">feels ${Math.round(data.current.apparent_temperature)}°</span>
           </div>
         </div>
-        <div class="tile-hint" style="margin-top:1px; font-size:11px;">${desc} · wind ${Math.round(data.current.wind_speed_10m)} km/h</div>`
-      : `<div style="display:flex; align-items:center; gap:10px;">
+        <div class="tile-hint" style="margin-top:1px; font-size:11px;">${desc} · wind ${Math.round(data.current.wind_speed_10m)} km/h</div>
+        </div>`
+      : `<div class="weather-summary-group">
+          <div style="display:flex; align-items:center; gap:10px;">
           <span style="display:inline-flex; width:28px; height:28px; flex-shrink:0;">${iconSvg}</span>
           <div style="display:flex; align-items:baseline; gap:7px;">
             <span style="font-family:'JetBrains Mono',monospace; font-size:26px; color:var(--text);">${tmax}°</span>
             <span style="font-size:10px; color:var(--text-mid);">low ${tmin}°</span>
           </div>
         </div>
-        <div class="tile-hint" style="margin-top:1px; font-size:11px;">${desc}</div>`;
+        <div class="tile-hint" style="margin-top:1px; font-size:11px;">${desc}</div>
+        </div>`;
 
     bodyEl.innerHTML = `
       ${renderWeatherDaySelectorHTML()}
