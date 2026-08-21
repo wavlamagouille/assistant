@@ -1065,7 +1065,7 @@
   // the five utility tiles sit 3-per-row. User can drag/resize freely from
   // here — this is just the starting layout.
   const DEFAULT_SIZE = {
-    weather: { w:12, h:6 },
+    weather: { w:12, h:5 },
     mail:    { w:4,  h:5 },
     agenda:  { w:4,  h:8 },
     markets: { w:4,  h:5 },
@@ -1881,12 +1881,13 @@
     msg.style.cssText = 'display:none; color:var(--rose-bright); margin-bottom:2px;';
     searchRow.insertAdjacentElement('afterend', msg);
 
-    const existingBtn = tile.querySelector('button[data-module="weather"]');
     const radarBtn = document.createElement('button');
-    radarBtn.className = 'tile-cta';
+    radarBtn.className = 'icon-refresh-btn';
     radarBtn.id = 'radarToggleBtn';
-    radarBtn.textContent = 'Radar';
-    existingBtn.insertAdjacentElement('afterend', radarBtn);
+    radarBtn.title = 'Rain radar';
+    radarBtn.setAttribute('aria-label', 'Rain radar');
+    radarBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/><path d="M12 3v2M12 19v2M21 12h-2M5 12H3"/></svg>`;
+    tile.querySelector('.tile-head-right').appendChild(radarBtn);
 
     const cityInput = document.getElementById('citySearchInput');
     const suggestionsBox = document.getElementById('citySuggestions');
