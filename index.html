@@ -1318,22 +1318,7 @@
   const savedLayoutRaw = localStorage.getItem('dashboard_layout');
   if(savedLayoutRaw){
     try{
-      let layout = JSON.parse(savedLayoutRaw);
-      // One-time migration: layouts saved before the grid resolution doubled
-      // (12 cols/70px -> 24 cols/35px) need their coordinates scaled 2x to
-      // keep tiles the same actual size/position instead of suddenly
-      // rendering at half scale on the finer grid.
-      if(localStorage.getItem('grid_scale_migrated') !== 'v2'){
-        layout = layout.map(item => ({
-          ...item,
-          x: item.x != null ? item.x * 2 : item.x,
-          y: item.y != null ? item.y * 2 : item.y,
-          w: item.w != null ? item.w * 2 : item.w,
-          h: item.h != null ? item.h * 2 : item.h
-        }));
-        localStorage.setItem('grid_scale_migrated', 'v2');
-      }
-      gridStack.load(layout, false);
+      gridStack.load(JSON.parse(savedLayoutRaw), false);
     }catch(err){ console.warn('layout load failed, using defaults', err); }
   }
 
