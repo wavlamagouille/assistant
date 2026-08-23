@@ -33,12 +33,17 @@ async function findAssets(debugLog) {
 }
 
 function readAttr(h5Group, name) {
-  if (!h5Group || !h5Group.attrs || !h5Group.attrs[name]) return undefined;
-  const attr = h5Group.attrs[name];
-  // h5wasm attribute objects may expose the value directly via .value, or
-  // (less commonly) already be the raw value/array itself - handle both.
-  const v = (attr && typeof attr === 'object' && 'value' in attr) ? attr.value : attr;
-  return Array.isArray(v) || (v && v.length !== undefined && typeof v !== 'string') ? v[0] : v;
+  try {
+    if (!h5Group || !h5Group.attrs || !h5Group.attrs[name]) return undefined;
+    const attr = h5Group.attrs[name];
+    // h5wasm attribute objects may expose the value directly via .value, or
+    // (less commonly) already be the raw value/array itself - handle both.
+    const v = (attr && typeof attr === 'object' && 'value' in attr) ? attr.value : attr;
+    return Array.isArray(v) || (v && v.length !== undefined && typeof v !== 'string') ? v[0] : v;
+  } catch (err) {
+    console.error(`readAttr failed for "${name}":`, err.message);
+    return undefined;
+  }
 }
 
 export default async function handler(req, res) {
