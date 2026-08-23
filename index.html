@@ -597,6 +597,7 @@
     gap:6px;
     flex:1;
     min-height:0;
+    min-width:0;
     overflow-y:auto;
     scrollbar-width:thin;
     scrollbar-color:var(--line) transparent;
@@ -638,6 +639,10 @@
     font-size:13px;
     color:var(--text-mid);
     line-height:1.5;
+    overflow-wrap:break-word;
+    word-break:break-word;
+    min-width:0;
+    max-width:100%;
   }
   .tile-cta{
     align-self:flex-start;
@@ -2629,12 +2634,30 @@
 
   let mailObserver = null;
 
+  function formatMailDate(dateStr){
+    if(!dateStr) return { label:'', isToday:false };
+    const d = new Date(dateStr);
+    if(isNaN(d.getTime())) return { label:'', isToday:false };
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const label = isToday
+      ? d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })
+      : d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ', ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+    return { label, isToday };
+  }
+
   function renderMailMessages(bodyEl, msgs, append){
-    const rowsHtml = msgs.map(m => `
-      <div class="mail-row" data-uid="${m.uid}" style="width:100%; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer;">
-        <div style="font-size:13px; color:var(--text);">${m.subject}</div>
+    const rowsHtml = msgs.map(m => {
+      const { label: dateLabel, isToday } = formatMailDate(m.date);
+      return `
+      <div class="mail-row ${isToday ? 'mail-row-today' : ''}" data-uid="${m.uid}" style="width:100%; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px;">
+          <div style="font-size:13px; color:var(--text); ${isToday ? 'font-weight:600;' : ''}">${m.subject}</div>
+          ${dateLabel ? `<span style="font-size:10px; color:${isToday ? 'var(--rose-bright)' : 'var(--text-dim)'}; font-family:'JetBrains Mono',monospace; white-space:nowrap; flex-shrink:0;">${dateLabel}</span>` : ''}
+        </div>
         <div style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${m.from}</div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     if(append){
       const hint = document.getElementById('mailLoadingMore');
       if(hint) hint.insertAdjacentHTML('beforebegin', rowsHtml);
