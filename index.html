@@ -1072,7 +1072,7 @@
     weather: { w:12, h:5 },
     mail:    { w:4,  h:5 },
     agenda:  { w:4,  h:8 },
-    markets: { w:4,  h:5 },
+    markets: { w:4,  h:9 },
     news:    { w:4,  h:11 },
     mastering:{ w:4, h:5 },
     tasks:   { w:7,  h:7 },
@@ -1960,6 +1960,49 @@
     { id:'ripple',   symbol:'XRP', name:'XRP' }
   ];
 
+  // Stocks/indices restored via a hybrid: Finnhub for individual stocks
+  // (60/min free tier, reliably worked when we had it), Twelve Data for
+  // indices/commodities specifically (Finnhub's free tier doesn't support
+  // index symbols at all - confirmed via their own GitHub issues). Now that
+  // stocks aren't sharing Twelve Data's budget, its 800/day limit only needs
+  // to cover 5 fixed symbols - a much lighter, sustainable load.
+  const TWELVE_DATA_KEY = 'bbd79e3e73ea4a9eb869a7a6c1bff7d1';
+  const FINNHUB_KEY = 'da31fkpr01qupvfb9t10da31fkpr01qupvfb9t1g';
+  const INDEX_COMMODITY_SYMBOLS = new Set(['SPX', 'IXIC', 'SMI', 'XAU/USD', 'XAG/USD']);
+  let STOCKS = [
+    { symbol:'SPX',     label:'S&P 500', tv:'SP:SPX' },
+    { symbol:'IXIC',    label:'NASDAQ',  tv:'NASDAQ:IXIC' },
+    { symbol:'SMI',     label:'SMI',     tv:'SIX:SMI' },
+    { symbol:'XAU/USD', label:'GOLD',    tv:'TVC:GOLD' },
+    { symbol:'XAG/USD', label:'SILVER',  tv:'TVC:SILVER' },
+    { symbol:'AAPL',    label:'AAPL',    tv:'NASDAQ:AAPL' },
+    { symbol:'MSFT',    label:'MSFT',    tv:'NASDAQ:MSFT' },
+    { symbol:'NVDA',    label:'NVDA',    tv:'NASDAQ:NVDA' },
+  ];
+  let lastGoodStocksRows = '';
+  let stocksLastFetchOk = false;
+
+  function renderStockRow(asset, q){
+    const price = Number(q.close);
+    const pct = Number(q.percent_change);
+    const up = pct >= 0;
+    const color = up ? '#4ade80' : 'var(--rose-bright)';
+    const sign = up ? '+' : '';
+    return `
+      <div class="coin-row" data-tv="${asset.tv}" data-title="${asset.label}" style="display:flex; align-items:center; justify-content:space-between; width:100%; padding:4px 0;">
+        <div style="display:flex; align-items:baseline; gap:8px;">
+          <span style="font-family:'Bebas Neue',sans-serif; font-size:15px; color:var(--text-mid);">${asset.label}</span>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:15px;">${price.toLocaleString('en-US',{maximumFractionDigits:2})}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:${color};">${sign}${pct.toFixed(1)}%</span>
+          <button class="stock-remove-btn" data-remove-type="stock" data-remove-symbol="${asset.symbol}" title="Remove ${asset.symbol}" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; line-height:1; padding:0 2px;">×</button>
+        </div>
+      </div>`;
+  }
+
+  const sectionLabel = (text) => `<div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--line); width:100%; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:.15em; color:var(--text-dim); text-transform:uppercase;">${text}</div>`;
+
   function sparkline(prices){
     const w = 70, h = 24;
     const min = Math.min(...prices), max = Math.max(...prices);
@@ -1986,7 +2029,7 @@
         <div style="display:flex; align-items:center; gap:10px;">
           <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:${color};">${sign}${(c.price_change_percentage_24h||0).toFixed(1)}%</span>
           ${c.sparkline_in_7d ? `<div style="color:${color};">${sparkline(c.sparkline_in_7d.price)}</div>` : ''}
-          <button class="stock-remove-btn" data-remove-symbol="${c.id}" title="Remove ${c.symbol.toUpperCase()}" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; line-height:1; padding:0 2px;">×</button>
+          <button class="stock-remove-btn" data-remove-type="coin" data-remove-symbol="${c.id}" title="Remove ${c.symbol.toUpperCase()}" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; line-height:1; padding:0 2px;">×</button>
         </div>
       </div>`;
   }
@@ -2000,6 +2043,7 @@
     stateEl.classList.remove('off');
 
     let cryptoHTML = '';
+    let stocksHTML = '';
     let ok = false;
 
     if(!TRACKED_COINS.length){
@@ -2022,8 +2066,84 @@
       }
     }
 
-    stateEl.textContent = ok ? 'Live — CoinGecko' : 'Connection error';
-    bodyEl.innerHTML = cryptoHTML;
+    if(!STOCKS.length){
+      stocksHTML = sectionLabel('Stocks & more') + '<div class="tile-hint">Nothing tracked - search below to add.</div>';
+    } else {
+      try{
+        const indexStocks = STOCKS.filter(s => INDEX_COMMODITY_SYMBOLS.has(s.symbol));
+        const individualStocks = STOCKS.filter(s => !INDEX_COMMODITY_SYMBOLS.has(s.symbol));
+        const quotes = {}; // symbol -> normalized {close, percent_change} | null | undefined(provider failure)
+
+        if(indexStocks.length){
+          try{
+            const symbols = indexStocks.map(s => s.symbol).join(',');
+            const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(symbols)}&apikey=${TWELVE_DATA_KEY}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            const looksLikeBatchError = indexStocks.length > 1 &&
+              (data.status === 'error' || data.code || !indexStocks.some(s => data[s.symbol]));
+            if(!looksLikeBatchError){
+              indexStocks.forEach(asset => {
+                const q = indexStocks.length > 1 ? data[asset.symbol] : data;
+                quotes[asset.symbol] = (q && q.status !== 'error' && q.close != null)
+                  ? { close: q.close, percent_change: q.percent_change } : null;
+              });
+            } else {
+              console.warn('markets: Twelve Data batch failed', data);
+              indexStocks.forEach(asset => { quotes[asset.symbol] = undefined; });
+            }
+          }catch(err){
+            console.error('index/commodity fetch failed', err);
+            indexStocks.forEach(asset => { quotes[asset.symbol] = undefined; });
+          }
+        }
+
+        if(individualStocks.length){
+          const results = await Promise.allSettled(individualStocks.map(async asset => {
+            const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(asset.symbol)}&token=${FINNHUB_KEY}`);
+            const q = await res.json();
+            return { symbol: asset.symbol, q };
+          }));
+          results.forEach((r, i) => {
+            const asset = individualStocks[i];
+            if(r.status === 'fulfilled' && r.value.q && r.value.q.c){
+              quotes[asset.symbol] = { close: r.value.q.c, percent_change: r.value.q.dp };
+            } else {
+              quotes[asset.symbol] = null;
+            }
+          });
+        }
+
+        const rows = STOCKS.map(asset => {
+          const q = quotes[asset.symbol];
+          if(q === undefined) return null;
+          if(q === null){
+            return `<div class="coin-row" style="width:100%; display:flex; align-items:center; justify-content:space-between; padding:4px 0;">
+              <span style="font-family:'Bebas Neue',sans-serif; font-size:15px; color:var(--text-dim);">${asset.label} <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--rose-bright); text-transform:uppercase;">unavailable</span></span>
+              <button class="stock-remove-btn" data-remove-type="stock" data-remove-symbol="${asset.symbol}" title="Remove ${asset.symbol}" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; line-height:1; padding:0 2px;">×</button>
+            </div>`;
+          }
+          return renderStockRow(asset, q);
+        });
+
+        if(rows.some(r => r === null)){
+          stocksHTML = sectionLabel('Stocks & more') + (lastGoodStocksRows || `<div class="tile-hint" style="color:var(--rose-bright);">Some prices failed to load (possibly rate-limited).</div>`);
+          stocksLastFetchOk = false;
+        } else {
+          const joined = rows.join('');
+          lastGoodStocksRows = joined;
+          stocksHTML = sectionLabel('Stocks & more') + joined;
+          stocksLastFetchOk = true;
+        }
+      }catch(err){
+        console.error('stocks fetch failed', err);
+        stocksHTML = sectionLabel('Stocks & more') + (lastGoodStocksRows || `<div class="tile-hint">Stock/index prices failed to load.</div>`);
+        stocksLastFetchOk = false;
+      }
+    }
+
+    stateEl.textContent = ok ? 'Live — CoinGecko + Finnhub + Twelve Data' : 'Connection error';
+    bodyEl.innerHTML = cryptoHTML + stocksHTML;
 
     btn.style.display = 'none';
     addRefreshIcon('markets', connectMarkets);
@@ -2169,6 +2289,103 @@
     document.getElementById('stockSearchInput').addEventListener('keydown', (e) => {
       if(e.key === 'Enter') addFromTopResult();
     });
+
+    // ---- separate search for stocks/indices, powered by Finnhub ----
+    const tickerRow = document.createElement('div');
+    tickerRow.style.cssText = 'display:flex; gap:8px; margin:4px 0; position:relative;';
+    tickerRow.innerHTML = `
+      <div style="flex:1; min-width:0; position:relative;">
+        <input id="tickerSearchInput" type="text" placeholder="Add stock/index (e.g. TSLA)…" style="width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--line); border-radius:3px; color:var(--text); padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none;" autocomplete="off">
+        <div id="tickerSuggestions" class="city-suggestions"></div>
+      </div>
+      <button id="tickerSearchBtn" class="tile-cta" style="margin-top:0;">Add</button>
+    `;
+    msg.insertAdjacentElement('afterend', tickerRow);
+
+    const tickerMsg = document.createElement('div');
+    tickerMsg.id = 'tickerSearchMsg';
+    tickerMsg.className = 'tile-hint';
+    tickerMsg.style.cssText = 'display:none; color:var(--rose-bright); margin-bottom:2px;';
+    tickerRow.insertAdjacentElement('afterend', tickerMsg);
+
+    function showTickerMsg(text){
+      tickerMsg.textContent = text;
+      tickerMsg.style.display = 'block';
+      setTimeout(() => { tickerMsg.style.display = 'none'; }, 4000);
+    }
+
+    let lastTickerResults = [];
+    let tickerDebounce = null;
+    const tickerInput = document.getElementById('tickerSearchInput');
+    const tickerSuggBox = document.getElementById('tickerSuggestions');
+
+    function renderTickerSuggestions(){
+      if(!lastTickerResults.length){ tickerSuggBox.classList.remove('show'); return; }
+      tickerSuggBox.innerHTML = lastTickerResults.map((m, i) => `
+        <div class="city-suggestion" data-idx="${i}">
+          <span class="cs-name">${m.symbol}</span>
+          <span class="cs-region">${m.description || ''}</span>
+        </div>
+      `).join('');
+      tickerSuggBox.classList.add('show');
+      tickerSuggBox.querySelectorAll('.city-suggestion').forEach((el, i) => {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          addTrackedStock(lastTickerResults[i].symbol);
+        });
+      });
+    }
+
+    async function addTrackedStock(symbol){
+      symbol = symbol.trim().toUpperCase();
+      if(!symbol) return;
+      tickerSuggBox.classList.remove('show');
+      if(STOCKS.some(s => s.symbol.toUpperCase() === symbol)){
+        showTickerMsg(symbol + ' is already tracked.');
+        return;
+      }
+      const btn = document.getElementById('tickerSearchBtn');
+      btn.textContent = '…';
+      btn.disabled = true;
+      STOCKS.push({ symbol, label: symbol, tv: symbol });
+      tickerInput.value = '';
+      await connectMarkets();
+      if(!stocksLastFetchOk){
+        showTickerMsg('Could not confirm ' + symbol + ' right now - added anyway, try Refresh shortly.');
+      }
+      btn.textContent = 'Add';
+      btn.disabled = false;
+    }
+
+    tickerInput.addEventListener('input', () => {
+      const q = tickerInput.value.trim();
+      clearTimeout(tickerDebounce);
+      if(q.length < 1){ tickerSuggBox.classList.remove('show'); return; }
+      tickerDebounce = setTimeout(async () => {
+        try{
+          const res = await fetchWithTimeout(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(q)}&token=${FINNHUB_KEY}`, null, 6000);
+          const data = await res.json();
+          lastTickerResults = (data.result || []).slice(0, 6);
+          renderTickerSuggestions();
+        }catch(err){ console.error('ticker search failed', err); }
+      }, 300);
+    });
+    document.getElementById('tickerSearchBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(lastTickerResults.length) addTrackedStock(lastTickerResults[0].symbol);
+      else if(tickerInput.value.trim()) addTrackedStock(tickerInput.value);
+    });
+    tickerInput.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter'){
+        if(lastTickerResults.length) addTrackedStock(lastTickerResults[0].symbol);
+        else if(tickerInput.value.trim()) addTrackedStock(tickerInput.value);
+      }
+    });
+    document.addEventListener('click', (e) => {
+      if(!e.target.closest('#tickerSearchInput') && !e.target.closest('#tickerSuggestions')){
+        tickerSuggBox.classList.remove('show');
+      }
+    });
   }
   augmentMarketsTile();
   setTimeout(connectMarkets, 250);
@@ -2271,8 +2488,14 @@
     if(removeBtn){
       e.stopPropagation();
       const id = removeBtn.dataset.removeSymbol;
-      const idx = TRACKED_COINS.findIndex(c => c.id === id);
-      if(idx > -1) TRACKED_COINS.splice(idx, 1);
+      const type = removeBtn.dataset.removeType;
+      if(type === 'stock'){
+        const idx = STOCKS.findIndex(s => s.symbol === id);
+        if(idx > -1) STOCKS.splice(idx, 1);
+      } else {
+        const idx = TRACKED_COINS.findIndex(c => c.id === id);
+        if(idx > -1) TRACKED_COINS.splice(idx, 1);
+      }
       // Remove the row directly - instant, doesn't depend on a fresh network
       // fetch succeeding (which could fail/rate-limit and fall back to stale
       // cached data that still shows the removed coin).
