@@ -934,12 +934,14 @@
   <div class="modal-backdrop" id="radarModalBackdrop">
     <div class="modal-panel">
       <div class="modal-head">
-        <div class="modal-title" id="radarModalTitle">RAIN RADAR — MÉTÉOSUISSE</div>
+        <div class="modal-title" id="radarModalTitle">RAIN RADAR — LAST 2H</div>
         <button class="modal-close" id="radarModalClose">✕</button>
       </div>
       <div id="radarModalMap" class="radar-modal-map"></div>
       <div class="radar-controls">
-        <span class="tile-idx" id="radarFrameLabel" style="color:var(--rose-bright);">● Live</span>
+        <button class="tile-cta" id="radarPlayBtn" style="margin-top:0;">Play</button>
+        <input type="range" id="radarSlider" min="0" max="0" value="0">
+        <span class="tile-idx" id="radarFrameLabel">—</span>
       </div>
       <div class="precip-outlook-wrap">
         <div class="precip-outlook-label">24H FORECAST OUTLOOK</div>
@@ -1693,6 +1695,12 @@
           maxZoom: 12
         }).addTo(radarMapInstance);
         radarMarker = L.marker([LOCATION.lat, LOCATION.lon]).addTo(radarMapInstance);
+
+        document.getElementById('radarPlayBtn').addEventListener('click', toggleRadarPlay);
+        document.getElementById('radarSlider').addEventListener('input', (e) => {
+          stopRadarPlay();
+          showRadarFrame(parseInt(e.target.value, 10));
+        });
       } else {
         recenterRadar(LOCATION.lat, LOCATION.lon);
       }
@@ -1708,19 +1716,60 @@
 
   function closeRadarModal(){
     document.getElementById('radarModalBackdrop').classList.remove('show');
+    stopRadarPlay();
   }
 
-  function loadRadarFrames(){
-    const label = document.getElementById('radarFrameLabel');
-    if(label) label.textContent = 'Now';
+  let radarFrames = [], radarFrameIdx = 0, radarTimer = null, rainviewerHost = '';
+
+  async function loadRadarFrames(){
+    try{
+      const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+      const data = await res.json();
+      rainviewerHost = data.host;
+      radarFrames = (data.radar.past || []).slice(-12);
+      radarFrameIdx = radarFrames.length - 1;
+      const slider = document.getElementById('radarSlider');
+      slider.max = radarFrames.length - 1;
+      slider.value = radarFrameIdx;
+      showRadarFrame(radarFrameIdx);
+    }catch(err){
+      console.error('rainviewer fetch failed', err);
+      const label = document.getElementById('radarFrameLabel');
+      if(label) label.textContent = 'Unavailable';
+    }
+  }
+
+  function showRadarFrame(idx){
+    if(!radarFrames[idx] || !radarMapInstance) return;
+    radarFrameIdx = idx;
+    const frame = radarFrames[idx];
+    const url = `${rainviewerHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
     if(radarLayer) radarMapInstance.removeLayer(radarLayer);
-    // MeteoSwiss's own official pre-rendered radar tiles (same source their
-    // own map viewer uses) - already correctly georeferenced by them, no
-    // custom parsing/projection needed.
-    radarLayer = L.tileLayer(
-      'https://wmts.geo.admin.ch/1.0.0/ch.meteoschweiz.messwerte-niederschlag-10min/default/current/3857/{z}/{x}/{y}.png',
-      { opacity:0.75, zIndex:5, attribution:'MeteoSwiss' }
-    ).addTo(radarMapInstance);
+    radarLayer = L.tileLayer(url, { opacity:0.7, zIndex:5, maxNativeZoom:7, maxZoom:12 }).addTo(radarMapInstance);
+    const slider = document.getElementById('radarSlider');
+    if(slider) slider.value = idx;
+    const label = document.getElementById('radarFrameLabel');
+    if(label){
+      const d = new Date(frame.time * 1000);
+      label.textContent = d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
+    }
+  }
+
+  function toggleRadarPlay(){
+    const btn = document.getElementById('radarPlayBtn');
+    if(radarTimer){ stopRadarPlay(); return; }
+    btn.textContent = 'Pause';
+    radarTimer = setInterval(() => {
+      const next = (radarFrameIdx + 1) % radarFrames.length;
+      showRadarFrame(next);
+    }, 500);
+  }
+
+  function stopRadarPlay(){
+    clearInterval(radarTimer);
+    radarTimer = null;
+    const btn = document.getElementById('radarPlayBtn');
+    if(btn) btn.textContent = 'Play';
   }
 
   function recenterRadar(lat, lon){
