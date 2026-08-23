@@ -934,7 +934,7 @@
   <div class="modal-backdrop" id="radarModalBackdrop">
     <div class="modal-panel">
       <div class="modal-head">
-        <div class="modal-title" id="radarModalTitle">RAIN RADAR — PAST 2H</div>
+        <div class="modal-title" id="radarModalTitle">RAIN RADAR — MÉTÉOSUISSE, PAST 1H</div>
         <button class="modal-close" id="radarModalClose">✕</button>
       </div>
       <div id="radarModalMap" class="radar-modal-map"></div>
@@ -1653,15 +1653,13 @@
     if(document.getElementById('radarModalBackdrop').classList.contains('show')) loadPrecipOutlook();
   }
 
-  // ---- rain radar (Leaflet + RainViewer tiles, no key needed) ----
-  // Real MeteoSwiss radar files are raw HDF5 and need a backend to decode;
-  // RainViewer gives live global radar imagery (incl. Switzerland) as simple
-  // map tiles that work directly in the browser. Zoom caps below (maxNativeZoom:7,
-  // maxZoom:12) match RainViewer's own reference implementation — radar tiles
-  // aren't rendered past native zoom 7, so Leaflet upscales instead of requesting
-  // unsupported levels (that's what caused the earlier "zoom level not supported").
+  // ---- rain radar (Leaflet + MeteoSwiss, no key needed) ----
+  // Uses MeteoSwiss's Open Government Data radar product (RZC, updated every
+  // 5 min, free since Nov 2025), decoded server-side from raw HDF5 into a
+  // georeferenced PNG image overlay - genuine Swiss national radar coverage
+  // at high resolution, not a global tile service.
   let radarMapInstance = null, radarLayer = null, radarMarker = null;
-  let radarFrames = [], radarFrameIdx = 0, radarTimer = null, rainviewerHost = '';
+  let radarFrameIdx = 0, radarTimer = null;
 
   let leafletLoadPromise = null;
   function ensureLeaflet(){
@@ -1719,37 +1717,51 @@
     stopRadarPlay();
   }
 
+  let radarFrameCount = 0;
+
   async function loadRadarFrames(){
     try{
-      const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+      const res = await fetch('/api/meteoswiss-radar?list=1');
+      if(!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
-      rainviewerHost = data.host;
-      radarFrames = (data.radar.past || []).slice(-12);
-      radarFrameIdx = radarFrames.length - 1;
+      radarFrameCount = (data.frames || []).length;
+      if(!radarFrameCount) throw new Error('No radar frames available right now.');
+      radarFrameIdx = 0; // backend returns newest-first, so index 0 is "now"
       const slider = document.getElementById('radarSlider');
-      slider.max = radarFrames.length - 1;
-      slider.value = radarFrameIdx;
-      showRadarFrame(radarFrameIdx);
+      slider.max = radarFrameCount - 1;
+      slider.value = 0;
+      showRadarFrame(0);
     }catch(err){
-      console.error('rainviewer fetch failed', err);
+      console.error('meteoswiss radar list failed', err);
       const label = document.getElementById('radarFrameLabel');
       if(label) label.textContent = 'Unavailable';
     }
   }
 
-  function showRadarFrame(idx){
-    if(!radarFrames[idx] || !radarMapInstance) return;
+  async function showRadarFrame(idx){
+    if(!radarMapInstance || idx < 0 || idx >= radarFrameCount) return;
     radarFrameIdx = idx;
-    const frame = radarFrames[idx];
-    const url = `${rainviewerHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
-    if(radarLayer) radarMapInstance.removeLayer(radarLayer);
-    radarLayer = L.tileLayer(url, { opacity:0.7, zIndex:5, maxNativeZoom:7, maxZoom:12 }).addTo(radarMapInstance);
     const slider = document.getElementById('radarSlider');
     if(slider) slider.value = idx;
     const label = document.getElementById('radarFrameLabel');
-    if(label){
-      const d = new Date(frame.time * 1000);
-      label.textContent = d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
+    // Backend returns newest-first (index 0 = now), frames are 5-min steps.
+    if(label) label.textContent = idx === 0 ? 'Now' : `-${idx * 5}min`;
+
+    try{
+      const res = await fetch(`/api/meteoswiss-radar?frame=${idx}`);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const boundsHeader = res.headers.get('X-Radar-Bounds');
+      const bounds = boundsHeader ? JSON.parse(boundsHeader) : null;
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+
+      if(radarLayer) radarMapInstance.removeLayer(radarLayer);
+      if(bounds){
+        radarLayer = L.imageOverlay(objectUrl, bounds, { opacity:0.75, zIndex:5 }).addTo(radarMapInstance);
+      }
+    }catch(err){
+      console.error('meteoswiss radar frame failed', err);
+      if(label) label.textContent = 'Failed';
     }
   }
 
@@ -1758,7 +1770,7 @@
     if(radarTimer){ stopRadarPlay(); return; }
     btn.textContent = 'Pause';
     radarTimer = setInterval(() => {
-      const next = (radarFrameIdx + 1) % radarFrames.length;
+      const next = (radarFrameIdx - 1 + radarFrameCount) % radarFrameCount;
       showRadarFrame(next);
     }, 500);
   }
