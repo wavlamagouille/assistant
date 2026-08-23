@@ -69,7 +69,7 @@ export default async function handler(req, res) {
     const h5wasm = await import('h5wasm/node');
     await h5wasm.ready;
     const { FS } = h5wasm;
-    const tmpName = '/tmp_radar.h5';
+    const tmpName = '/tmp/radar.h5';
     FS.writeFile(tmpName, new Uint8Array(buffer));
     const f = new h5wasm.File(tmpName, 'r');
 
