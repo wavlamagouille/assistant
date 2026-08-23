@@ -13,38 +13,23 @@ import { PNG } from 'pngjs';
 
 const STAC_BASE = 'https://data.geo.admin.ch/api/stac/v1/collections/ch.meteoschweiz.ogd-radar-precip';
 
-// Official swisstopo approximate formula (LV95 -> WGS84), accurate to ~1m.
-function lv95ToWgs84(E, N) {
-  const y = (E - 2600000) / 1000000;
-  const x = (N - 1200000) / 1000000;
-  let lon = 2.6779094 + 4.728982 * y + 0.791484 * y * x + 0.1306 * y * x * x - 0.0436 * y * y * y;
-  let lat = 16.9023892 + 3.238272 * x - 0.270978 * y * y - 0.002528 * x * x - 0.0447 * y * y * x - 0.0140 * x * x * x;
-  lon = lon * 100 / 36;
-  lat = lat * 100 / 36;
-  return [lat, lon];
-}
-
-async function findLatestAsset(debugLog) {
-  // Items are typically organized per calendar day; fetch the most recent
-  // couple of items and pick the newest asset whose filename looks like the
-  // RZC (basic precip) product.
+async function findAssets(debugLog) {
   const itemsRes = await fetch(`${STAC_BASE}/items?limit=5&sortby=-datetime`);
   if (!itemsRes.ok) throw new Error('STAC items request failed: HTTP ' + itemsRes.status);
   const itemsData = await itemsRes.json();
   debugLog.stacItemCount = (itemsData.features || []).length;
 
+  const allUrls = [];
   for (const item of (itemsData.features || [])) {
     const assets = item.assets || {};
     const keys = Object.keys(assets)
       .filter(k => /rzc/i.test(k) && /\.h5$/i.test(k))
       .sort(); // ISO-ish timestamps in filenames sort correctly as strings
-    debugLog.lastItemAssetKeysSample = keys.slice(-5);
-    if (keys.length) {
-      const latestKey = keys[keys.length - 1];
-      return assets[latestKey].href;
-    }
+    for (const k of keys) allUrls.push(assets[k].href);
   }
-  throw new Error('No RZC (.h5) asset found in the most recent STAC items.');
+  // newest first, most recent ~12 frames (1h at 5-min steps)
+  allUrls.reverse();
+  return allUrls.slice(0, 12);
 }
 
 function readAttr(h5Group, name) {
@@ -61,8 +46,24 @@ export default async function handler(req, res) {
   const debugLog = {};
 
   try {
-    const assetUrl = await findLatestAsset(debugLog);
+    const assets = await findAssets(debugLog);
+    debugLog.assetCount = assets.length;
+
+    // ?list=1 just returns the available frame timestamps (parsed from
+    // filenames like rzc262212355v1.001.h5 -> ddhhmmss-ish) so the frontend
+    // can build a slider without downloading every frame up front.
+    if (req.query.list === '1') {
+      const frames = assets.map((url, i) => {
+        const m = url.match(/rzc(\d{9})/);
+        return { index: i, code: m ? m[1] : null };
+      });
+      return res.status(200).json({ frames });
+    }
+
+    const frameIdx = Math.max(0, Math.min(assets.length - 1, parseInt(req.query.frame, 10) || 0));
+    const assetUrl = assets[frameIdx];
     debugLog.assetUrl = assetUrl;
+    debugLog.frameIdx = frameIdx;
 
     const fileRes = await fetch(assetUrl);
     if (!fileRes.ok) throw new Error('Radar file download failed: HTTP ' + fileRes.status);
@@ -105,8 +106,8 @@ export default async function handler(req, res) {
     }
     debugLog.scaling = { gain, offset, nodata, undetect };
 
-    // Georeferencing - prefer direct lon/lat corners if present, else derive
-    // from Swiss LV95 easting/northing via the projection formula above.
+    // Georeferencing - direct lon/lat corners, confirmed reliably present
+    // in the real files (verified via ?debug=1 against a live frame).
     const where = f.get('where');
     debugLog.whereKeys = where ? where.attrs && Object.keys(where.attrs) : null;
     let bounds;
@@ -114,11 +115,6 @@ export default async function handler(req, res) {
     const UR_lon = readAttr(where, 'UR_lon'), UR_lat = readAttr(where, 'UR_lat');
     if (LL_lon != null && UR_lon != null) {
       bounds = [[LL_lat, LL_lon], [UR_lat, UR_lon]];
-    } else {
-      // Fall back to Swiss CH1903+/LV95 grid extent (standard values for the
-      // MeteoSwiss radar composite domain) and project corners manually.
-      const LL = lv95ToWgs84(255000, -160000 + 1200000); // placeholder-safe defaults, refined by xscale below if available
-      bounds = null; // signal to caller (debug output) that this needs the real where-attrs
     }
     debugLog.bounds = bounds;
 
