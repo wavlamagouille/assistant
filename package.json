@@ -5,6 +5,8 @@
   "dependencies": {
     "imapflow": "^1.0.164",
     "rrule": "^2.8.1",
-    "mailparser": "^3.7.1"
+    "mailparser": "^3.7.1",
+    "h5wasm": "^0.8.8",
+    "pngjs": "^7.0.0"
   }
 }
