@@ -118,9 +118,13 @@ export default async function handler(req, res) {
 
     // Georeferencing - direct lon/lat corners, confirmed reliably present
     // in the real files (verified via ?debug=1 against a live frame).
+    // The grid is NOT an axis-aligned rectangle in lat/lon space (confirmed:
+    // left edge alone shifts ~0.48° longitude between its top and bottom
+    // corners) - a plain L.imageOverlay bounds box would misplace it
+    // meaningfully. Returning three corners for L.imageOverlay.rotated
+    // instead, which handles the real skew/rotation properly.
     const where = f.get('where');
     debugLog.whereKeys = where ? where.attrs && Object.keys(where.attrs) : null;
-    let bounds;
     const LL_lon = readAttr(where, 'LL_lon'), LL_lat = readAttr(where, 'LL_lat');
     const LR_lon = readAttr(where, 'LR_lon'), LR_lat = readAttr(where, 'LR_lat');
     const UL_lon = readAttr(where, 'UL_lon'), UL_lat = readAttr(where, 'UL_lat');
@@ -130,18 +134,19 @@ export default async function handler(req, res) {
       xsize: readAttr(where, 'xsize'), ysize: readAttr(where, 'ysize'),
       xscale: readAttr(where, 'xscale'), yscale: readAttr(where, 'yscale')
     };
-    if (LL_lon != null && UR_lon != null) {
-      bounds = [[LL_lat, LL_lon], [UR_lat, UR_lon]];
-    }
-    debugLog.bounds = bounds;
+    // Pixel (0,0) is the north-west corner in standard ODIM/raster storage.
+    const corners3 = (UL_lat != null && UR_lat != null && LL_lat != null)
+      ? { topleft: [UL_lat, UL_lon], topright: [UR_lat, UR_lon], bottomleft: [LL_lat, LL_lon] }
+      : null;
+    debugLog.corners3 = corners3;
 
     if (debug) {
       res.status(200).json({ ok: true, debug: debugLog });
       return;
     }
 
-    if (!bounds) {
-      throw new Error('Could not determine georeferencing bounds from file (see ?debug=1 for details).');
+    if (!corners3) {
+      throw new Error('Could not determine georeferencing corners from file (see ?debug=1 for details).');
     }
 
     const [h, w] = shape;
@@ -165,7 +170,7 @@ export default async function handler(req, res) {
     }
 
     res.setHeader('Content-Type', 'image/png');
-    res.setHeader('X-Radar-Bounds', JSON.stringify(bounds));
+    res.setHeader('X-Radar-Corners', JSON.stringify(corners3));
     res.setHeader('Cache-Control', 'public, max-age=120');
     res.status(200).send(PNG.sync.write(png));
   } catch (err) {
