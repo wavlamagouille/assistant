@@ -1681,7 +1681,11 @@
       await ensureLeaflet();
       if(!radarMapInstance){
         box.innerHTML = '';
-        radarMapInstance = L.map('radarModalMap', { attributionControl:true, maxZoom:12, minZoom:3 })
+        radarMapInstance = L.map('radarModalMap', {
+          attributionControl:true, maxZoom:12, minZoom:6,
+          maxBounds: L.latLngBounds([45.3, 4.8], [48.5, 11.2]),
+          maxBoundsViscosity: 0.7
+        })
           .setView([LOCATION.lat, LOCATION.lon], 7);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
           attribution: '&copy; OpenStreetMap &copy; CARTO',
