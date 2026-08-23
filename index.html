@@ -1991,7 +1991,8 @@
   let TRACKED_COINS = [
     { id:'bitcoin',  symbol:'BTC', name:'Bitcoin' },
     { id:'ethereum', symbol:'ETH', name:'Ethereum' },
-    { id:'solana',   symbol:'SOL', name:'Solana' }
+    { id:'solana',   symbol:'SOL', name:'Solana' },
+    { id:'ripple',   symbol:'XRP', name:'XRP' }
   ];
 
   function sparkline(prices){
@@ -2640,9 +2641,7 @@
     if(isNaN(d.getTime())) return { label:'', isToday:false };
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
-    const label = isToday
-      ? d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false })
-      : d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ', ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
+    const label = d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ', ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
     return { label, isToday };
   }
 
