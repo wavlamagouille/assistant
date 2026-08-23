@@ -1663,12 +1663,23 @@
 
   let leafletLoadPromise = null;
   function ensureLeaflet(){
-    if(window.L) return Promise.resolve();
+    if(window.L && window.L.imageOverlay && window.L.imageOverlay.rotated) return Promise.resolve();
     if(leafletLoadPromise) return leafletLoadPromise;
     leafletLoadPromise = new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';
-      s.onload = () => resolve();
+      s.onload = () => {
+        // ImageOverlay.Rotated plugin - the MeteoSwiss radar grid is a
+        // genuinely skewed quadrilateral in lat/lon space (confirmed via
+        // real corner data), not axis-aligned, so a plain L.imageOverlay
+        // bounds box would misplace it. This extends L to accept three
+        // real corner points instead.
+        const s2 = document.createElement('script');
+        s2.src = 'https://cdn.jsdelivr.net/gh/IvanSanchez/Leaflet.ImageOverlay.Rotated@gh-pages/Leaflet.ImageOverlay.Rotated.js';
+        s2.onload = () => resolve();
+        s2.onerror = () => reject(new Error('ImageOverlay.Rotated plugin failed to load'));
+        document.head.appendChild(s2);
+      };
       s.onerror = () => reject(new Error('Leaflet script failed to load'));
       document.head.appendChild(s);
     });
@@ -1750,14 +1761,20 @@
     try{
       const res = await fetch(`/api/meteoswiss-radar?frame=${idx}`);
       if(!res.ok) throw new Error('HTTP ' + res.status);
-      const boundsHeader = res.headers.get('X-Radar-Bounds');
-      const bounds = boundsHeader ? JSON.parse(boundsHeader) : null;
+      const cornersHeader = res.headers.get('X-Radar-Corners');
+      const corners = cornersHeader ? JSON.parse(cornersHeader) : null;
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
 
       if(radarLayer) radarMapInstance.removeLayer(radarLayer);
-      if(bounds){
-        radarLayer = L.imageOverlay(objectUrl, bounds, { opacity:0.75, zIndex:5 }).addTo(radarMapInstance);
+      if(corners){
+        radarLayer = L.imageOverlay.rotated(
+          objectUrl,
+          L.latLng(corners.topleft[0], corners.topleft[1]),
+          L.latLng(corners.topright[0], corners.topright[1]),
+          L.latLng(corners.bottomleft[0], corners.bottomleft[1]),
+          { opacity:0.75, zIndex:5 }
+        ).addTo(radarMapInstance);
       }
     }catch(err){
       console.error('meteoswiss radar frame failed', err);
