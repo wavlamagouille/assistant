@@ -32,6 +32,10 @@ async function findAssets(debugLog) {
   return allUrls.slice(0, 12);
 }
 
+function toSafeNumber(v){
+  return typeof v === 'bigint' ? Number(v) : v;
+}
+
 function readAttr(h5Group, name) {
   try {
     if (!h5Group || !h5Group.attrs || !h5Group.attrs[name]) return undefined;
@@ -39,7 +43,8 @@ function readAttr(h5Group, name) {
     // h5wasm attribute objects may expose the value directly via .value, or
     // (less commonly) already be the raw value/array itself - handle both.
     const v = (attr && typeof attr === 'object' && 'value' in attr) ? attr.value : attr;
-    return Array.isArray(v) || (v && v.length !== undefined && typeof v !== 'string') ? v[0] : v;
+    const resolved = Array.isArray(v) || (v && v.length !== undefined && typeof v !== 'string') ? v[0] : v;
+    return toSafeNumber(resolved);
   } catch (err) {
     console.error(`readAttr failed for "${name}":`, err.message);
     return undefined;
