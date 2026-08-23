@@ -1026,7 +1026,7 @@
   // Build the formatters and grab the DOM elements once - constructing an
   // Intl.DateTimeFormat is the expensive part of toLocaleTimeString(), and
   // it was silently happening from scratch every single second, forever.
-  const tzFormatters = TZ_CLOCKS.map(z => new Intl.DateTimeFormat('en-GB', { timeZone: z.tz, hour:'2-digit', minute:'2-digit' }));
+  const tzFormatters = TZ_CLOCKS.map(z => new Intl.DateTimeFormat('en-GB', { timeZone: z.tz, hour:'2-digit', minute:'2-digit', hour12:false }));
   const tzEls = TZ_CLOCKS.map((z, i) => document.getElementById('tzTime' + i));
   function tickTz(){
     const now = new Date();
@@ -1486,8 +1486,8 @@
     const tmax = Math.round(daily.temperature_2m_max[dayIndex]);
     const tmin = Math.round(daily.temperature_2m_min[dayIndex]);
     const rainChance = daily.precipitation_probability_max ? daily.precipitation_probability_max[dayIndex] : null;
-    const sunrise = daily.sunrise ? new Date(daily.sunrise[dayIndex]).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' }) : null;
-    const sunset = daily.sunset ? new Date(daily.sunset[dayIndex]).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' }) : null;
+    const sunrise = daily.sunrise ? new Date(daily.sunrise[dayIndex]).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false }) : null;
+    const sunset = daily.sunset ? new Date(daily.sunset[dayIndex]).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false }) : null;
 
     const topLine = isToday
       ? `<div class="weather-summary-group">
@@ -1786,7 +1786,7 @@
     if(label){
       const d = new Date(frame.time * 1000);
       const prefix = frame.source === 'openweather' ? '+' : '';
-      label.textContent = prefix + d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+      label.textContent = prefix + d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
     }
   }
 
@@ -1842,7 +1842,7 @@
         if(firstIdx === -1){
           summaryEl.textContent = 'No significant rain expected in the next 24h.';
         } else {
-          const fmt = (i) => new Date(times[i]).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+          const fmt = (i) => new Date(times[i]).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
           summaryEl.textContent = 'Rain likely between ' + fmt(firstIdx) + ' and ' + fmt(lastIdx) + '.';
         }
       }
@@ -2641,8 +2641,8 @@
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
     const label = isToday
-      ? d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })
-      : d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ', ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+      ? d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false })
+      : d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ', ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
     return { label, isToday };
   }
 
@@ -2788,7 +2788,7 @@
           const d = new Date(ev.start);
           const dateStr = ev.allDay
             ? d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })
-            : d.toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+            : d.toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
           return `<div class="cal-next3-item">
             <span style="font-size:13px; color:var(--text);">${ev.summary}</span>
             <span style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; white-space:nowrap; margin-left:10px;">${dateStr}</span>
@@ -2849,7 +2849,7 @@
           <div class="cal-day-events">
             <div style="font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-dim); margin-bottom:6px;">${label}</div>
             ${dayEvents.map(ev => {
-              const t = ev.allDay ? 'All day' : new Date(ev.start).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+              const t = ev.allDay ? 'All day' : new Date(ev.start).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
               return `<div class="cal-next3-item"><span style="font-size:13px; color:var(--text);">${ev.summary}</span><span style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${t}</span></div>`;
             }).join('')}
           </div>`;
@@ -3627,8 +3627,8 @@
   function renderTransitConnections(connections, fromName, toName){
     const body = document.getElementById('transitModalBody');
     body.innerHTML = connections.map((c, i) => {
-      const dep = new Date(c.from.departure).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
-      const arr = new Date(c.to.arrival).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+      const dep = new Date(c.from.departure).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
+      const arr = new Date(c.to.arrival).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
       const durMatch = (c.duration || '').match(/(\d+)d(\d+):(\d+)/);
       let durationStr = c.duration || '';
       if(durMatch){
