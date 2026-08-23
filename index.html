@@ -1689,11 +1689,10 @@
           maxZoom: 12
         }).addTo(radarMapInstance);
         radarMarker = L.marker([LOCATION.lat, LOCATION.lon]).addTo(radarMapInstance);
-
-        loadRadarFrames();
       } else {
         recenterRadar(LOCATION.lat, LOCATION.lon);
       }
+      loadRadarFrames();
       requestAnimationFrame(() => radarMapInstance.invalidateSize());
       setTimeout(() => radarMapInstance && radarMapInstance.invalidateSize(), 150);
       setTimeout(() => radarMapInstance && radarMapInstance.invalidateSize(), 400);
