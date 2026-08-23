@@ -934,14 +934,12 @@
   <div class="modal-backdrop" id="radarModalBackdrop">
     <div class="modal-panel">
       <div class="modal-head">
-        <div class="modal-title" id="radarModalTitle">RAIN RADAR — MÉTÉOSUISSE, PAST 1H</div>
+        <div class="modal-title" id="radarModalTitle">RAIN RADAR — MÉTÉOSUISSE</div>
         <button class="modal-close" id="radarModalClose">✕</button>
       </div>
       <div id="radarModalMap" class="radar-modal-map"></div>
       <div class="radar-controls">
-        <button class="tile-cta" id="radarPlayBtn" style="margin-top:0;">Play</button>
-        <input type="range" id="radarSlider" min="0" max="0" value="0">
-        <span class="tile-idx" id="radarFrameLabel">—</span>
+        <span class="tile-idx" id="radarFrameLabel" style="color:var(--rose-bright);">● Live</span>
       </div>
       <div class="precip-outlook-wrap">
         <div class="precip-outlook-label">24H FORECAST OUTLOOK</div>
@@ -1659,27 +1657,15 @@
   // georeferenced PNG image overlay - genuine Swiss national radar coverage
   // at high resolution, not a global tile service.
   let radarMapInstance = null, radarLayer = null, radarMarker = null;
-  let radarFrameIdx = 0, radarTimer = null;
 
   let leafletLoadPromise = null;
   function ensureLeaflet(){
-    if(window.L && window.L.imageOverlay && window.L.imageOverlay.rotated) return Promise.resolve();
+    if(window.L) return Promise.resolve();
     if(leafletLoadPromise) return leafletLoadPromise;
     leafletLoadPromise = new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';
-      s.onload = () => {
-        // ImageOverlay.Rotated plugin - the MeteoSwiss radar grid is a
-        // genuinely skewed quadrilateral in lat/lon space (confirmed via
-        // real corner data), not axis-aligned, so a plain L.imageOverlay
-        // bounds box would misplace it. This extends L to accept three
-        // real corner points instead.
-        const s2 = document.createElement('script');
-        s2.src = 'https://cdn.jsdelivr.net/gh/IvanSanchez/Leaflet.ImageOverlay.Rotated@gh-pages/Leaflet.ImageOverlay.Rotated.js';
-        s2.onload = () => resolve();
-        s2.onerror = () => reject(new Error('ImageOverlay.Rotated plugin failed to load'));
-        document.head.appendChild(s2);
-      };
+      s.onload = () => resolve();
       s.onerror = () => reject(new Error('Leaflet script failed to load'));
       document.head.appendChild(s);
     });
@@ -1704,13 +1690,7 @@
         }).addTo(radarMapInstance);
         radarMarker = L.marker([LOCATION.lat, LOCATION.lon]).addTo(radarMapInstance);
 
-        document.getElementById('radarPlayBtn').addEventListener('click', toggleRadarPlay);
-        document.getElementById('radarSlider').addEventListener('input', (e) => {
-          stopRadarPlay();
-          showRadarFrame(parseInt(e.target.value, 10));
-        });
-
-        await loadRadarFrames();
+        loadRadarFrames();
       } else {
         recenterRadar(LOCATION.lat, LOCATION.lon);
       }
@@ -1725,78 +1705,19 @@
 
   function closeRadarModal(){
     document.getElementById('radarModalBackdrop').classList.remove('show');
-    stopRadarPlay();
   }
 
-  let radarFrameCount = 0;
-
-  async function loadRadarFrames(){
-    try{
-      const res = await fetch('/api/meteoswiss-radar?list=1');
-      if(!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      radarFrameCount = (data.frames || []).length;
-      if(!radarFrameCount) throw new Error('No radar frames available right now.');
-      radarFrameIdx = 0; // backend returns newest-first, so index 0 is "now"
-      const slider = document.getElementById('radarSlider');
-      slider.max = radarFrameCount - 1;
-      slider.value = 0;
-      showRadarFrame(0);
-    }catch(err){
-      console.error('meteoswiss radar list failed', err);
-      const label = document.getElementById('radarFrameLabel');
-      if(label) label.textContent = 'Unavailable';
-    }
-  }
-
-  async function showRadarFrame(idx){
-    if(!radarMapInstance || idx < 0 || idx >= radarFrameCount) return;
-    radarFrameIdx = idx;
-    const slider = document.getElementById('radarSlider');
-    if(slider) slider.value = idx;
+  function loadRadarFrames(){
     const label = document.getElementById('radarFrameLabel');
-    // Backend returns newest-first (index 0 = now), frames are 5-min steps.
-    if(label) label.textContent = idx === 0 ? 'Now' : `-${idx * 5}min`;
-
-    try{
-      const res = await fetch(`/api/meteoswiss-radar?frame=${idx}`);
-      if(!res.ok) throw new Error('HTTP ' + res.status);
-      const cornersHeader = res.headers.get('X-Radar-Corners');
-      const corners = cornersHeader ? JSON.parse(cornersHeader) : null;
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-
-      if(radarLayer) radarMapInstance.removeLayer(radarLayer);
-      if(corners){
-        radarLayer = L.imageOverlay.rotated(
-          objectUrl,
-          L.latLng(corners.topleft[0], corners.topleft[1]),
-          L.latLng(corners.topright[0], corners.topright[1]),
-          L.latLng(corners.bottomleft[0], corners.bottomleft[1]),
-          { opacity:0.75, zIndex:5 }
-        ).addTo(radarMapInstance);
-      }
-    }catch(err){
-      console.error('meteoswiss radar frame failed', err);
-      if(label) label.textContent = 'Failed';
-    }
-  }
-
-  function toggleRadarPlay(){
-    const btn = document.getElementById('radarPlayBtn');
-    if(radarTimer){ stopRadarPlay(); return; }
-    btn.textContent = 'Pause';
-    radarTimer = setInterval(() => {
-      const next = (radarFrameIdx - 1 + radarFrameCount) % radarFrameCount;
-      showRadarFrame(next);
-    }, 500);
-  }
-
-  function stopRadarPlay(){
-    clearInterval(radarTimer);
-    radarTimer = null;
-    const btn = document.getElementById('radarPlayBtn');
-    if(btn) btn.textContent = 'Play';
+    if(label) label.textContent = 'Now';
+    if(radarLayer) radarMapInstance.removeLayer(radarLayer);
+    // MeteoSwiss's own official pre-rendered radar tiles (same source their
+    // own map viewer uses) - already correctly georeferenced by them, no
+    // custom parsing/projection needed.
+    radarLayer = L.tileLayer(
+      'https://wmts.geo.admin.ch/1.0.0/ch.meteoschweiz.messwerte-niederschlag-10min/default/current/3857/{z}/{x}/{y}.png',
+      { opacity:0.75, zIndex:5, attribution:'MeteoSwiss' }
+    ).addTo(radarMapInstance);
   }
 
   function recenterRadar(lat, lon){
