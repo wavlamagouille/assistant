@@ -49,8 +49,11 @@ async function findLatestAsset(debugLog) {
 
 function readAttr(h5Group, name) {
   if (!h5Group || !h5Group.attrs || !h5Group.attrs[name]) return undefined;
-  const v = h5Group.attrs[name].value;
-  return Array.isArray(v) ? v[0] : v;
+  const attr = h5Group.attrs[name];
+  // h5wasm attribute objects may expose the value directly via .value, or
+  // (less commonly) already be the raw value/array itself - handle both.
+  const v = (attr && typeof attr === 'object' && 'value' in attr) ? attr.value : attr;
+  return Array.isArray(v) || (v && v.length !== undefined && typeof v !== 'string') ? v[0] : v;
 }
 
 export default async function handler(req, res) {
@@ -81,9 +84,14 @@ export default async function handler(req, res) {
 
     const data1 = dataset.get('data1');
     const dataArr = data1.get('data');
-    const raw = dataArr.to_array(); // typed array, shape info on .shape
+    const raw = dataArr.value; // typed array, shape info on .shape
     const shape = dataArr.shape;
     debugLog.shape = shape;
+    debugLog.dataSample = Array.from(raw.slice(0, 10));
+    let sampleMin = Infinity, sampleMax = -Infinity;
+    for (let i = 0; i < raw.length; i++) { if (raw[i] < sampleMin) sampleMin = raw[i]; if (raw[i] > sampleMax) sampleMax = raw[i]; }
+    debugLog.dataMin = sampleMin;
+    debugLog.dataMax = sampleMax;
 
     // gain/offset/nodata/undetect can live on dataset1/what or data1/what
     // depending on the exact product - check both.
