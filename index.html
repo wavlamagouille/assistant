@@ -1968,13 +1968,11 @@
   // to cover 5 fixed symbols - a much lighter, sustainable load.
   const TWELVE_DATA_KEY = 'bbd79e3e73ea4a9eb869a7a6c1bff7d1';
   const FINNHUB_KEY = 'da31fkpr01qupvfb9t10da31fkpr01qupvfb9t1g';
-  const INDEX_COMMODITY_SYMBOLS = new Set(['SPX', 'IXIC', 'SMI', 'XAU/USD', 'XAG/USD']);
+  const INDEX_COMMODITY_SYMBOLS = new Set(['SPX', '^IXIC', 'XAU/USD']);
   let STOCKS = [
     { symbol:'SPX',     label:'S&P 500', tv:'SP:SPX' },
-    { symbol:'IXIC',    label:'NASDAQ',  tv:'NASDAQ:IXIC' },
-    { symbol:'SMI',     label:'SMI',     tv:'SIX:SMI' },
+    { symbol:'^IXIC',   label:'NASDAQ',  tv:'NASDAQ:IXIC' },
     { symbol:'XAU/USD', label:'GOLD',    tv:'TVC:GOLD' },
-    { symbol:'XAG/USD', label:'SILVER',  tv:'TVC:SILVER' },
     { symbol:'AAPL',    label:'AAPL',    tv:'NASDAQ:AAPL' },
     { symbol:'MSFT',    label:'MSFT',    tv:'NASDAQ:MSFT' },
     { symbol:'NVDA',    label:'NVDA',    tv:'NASDAQ:NVDA' },
