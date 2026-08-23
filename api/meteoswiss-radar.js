@@ -112,7 +112,14 @@ export default async function handler(req, res) {
     debugLog.whereKeys = where ? where.attrs && Object.keys(where.attrs) : null;
     let bounds;
     const LL_lon = readAttr(where, 'LL_lon'), LL_lat = readAttr(where, 'LL_lat');
+    const LR_lon = readAttr(where, 'LR_lon'), LR_lat = readAttr(where, 'LR_lat');
+    const UL_lon = readAttr(where, 'UL_lon'), UL_lat = readAttr(where, 'UL_lat');
     const UR_lon = readAttr(where, 'UR_lon'), UR_lat = readAttr(where, 'UR_lat');
+    debugLog.corners = { LL: [LL_lat, LL_lon], LR: [LR_lat, LR_lon], UL: [UL_lat, UL_lon], UR: [UR_lat, UR_lon] };
+    debugLog.gridInfo = {
+      xsize: readAttr(where, 'xsize'), ysize: readAttr(where, 'ysize'),
+      xscale: readAttr(where, 'xscale'), yscale: readAttr(where, 'yscale')
+    };
     if (LL_lon != null && UR_lon != null) {
       bounds = [[LL_lat, LL_lon], [UR_lat, UR_lon]];
     }
