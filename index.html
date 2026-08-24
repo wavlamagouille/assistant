@@ -1968,10 +1968,8 @@
   // to cover 5 fixed symbols - a much lighter, sustainable load.
   const TWELVE_DATA_KEY = 'bbd79e3e73ea4a9eb869a7a6c1bff7d1';
   const FINNHUB_KEY = 'da31fkpr01qupvfb9t10da31fkpr01qupvfb9t1g';
-  const INDEX_COMMODITY_SYMBOLS = new Set(['SPX', '^IXIC', 'XAU/USD']);
+  const INDEX_COMMODITY_SYMBOLS = new Set(['XAU/USD']);
   let STOCKS = [
-    { symbol:'SPX',     label:'S&P 500', tv:'SP:SPX' },
-    { symbol:'^IXIC',   label:'NASDAQ',  tv:'NASDAQ:IXIC' },
     { symbol:'XAU/USD', label:'GOLD',    tv:'TVC:GOLD' },
     { symbol:'AAPL',    label:'AAPL',    tv:'NASDAQ:AAPL' },
     { symbol:'MSFT',    label:'MSFT',    tv:'NASDAQ:MSFT' },
@@ -2149,37 +2147,13 @@
     if(ok){ connected.add('markets'); refreshCount(); flashTile('markets'); }
   }
 
-  // ---- stock/ticker search: add any symbol to the tracked list ----
-  let stockMsgTimer = null;
-  function showStockMsg(text){
-    const msg = document.getElementById('stockSearchMsg');
-    clearTimeout(stockMsgTimer);
-    msg.textContent = text;
-    msg.style.display = 'block';
-    stockMsgTimer = setTimeout(() => { msg.style.display = 'none'; }, 4000);
-  }
-  function hideStockMsg(){
-    clearTimeout(stockMsgTimer);
-    document.getElementById('stockSearchMsg').style.display = 'none';
-  }
-
   async function addTrackedCoin(coinId, symbol){
-    const btn = document.getElementById('stockSearchBtn');
     if(!coinId) return;
-    hideStockMsg();
-
     if(TRACKED_COINS.some(c => c.id === coinId)){
-      showStockMsg((symbol || coinId) + ' is already tracked.');
-      return;
+      return { alreadyTracked: true };
     }
-
-    btn.textContent = '…';
-    btn.disabled = true;
     TRACKED_COINS.push({ id: coinId, symbol: symbol || coinId, name: symbol || coinId });
-    document.getElementById('stockSearchInput').value = '';
     await connectMarkets();
-    btn.textContent = 'Add';
-    btn.disabled = false;
   }
 
   function augmentMarketsTile(){
@@ -2189,200 +2163,127 @@
     searchRow.style.cssText = 'display:flex; gap:8px; margin:2px 0 4px; position:relative;';
     searchRow.innerHTML = `
       <div style="flex:1; min-width:0; position:relative;">
-        <input id="stockSearchInput" type="text" placeholder="Search coins (e.g. Bitcoin, Apple)…" style="width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--line); border-radius:3px; color:var(--text); padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none;" autocomplete="off">
-        <div id="stockSuggestions" class="city-suggestions"></div>
+        <input id="marketSearchInput" type="text" placeholder="Search coins or stocks (e.g. Bitcoin, AAPL)…" style="width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--line); border-radius:3px; color:var(--text); padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none;" autocomplete="off">
+        <div id="marketSuggestions" class="city-suggestions"></div>
       </div>
-      <button id="stockSearchBtn" class="tile-cta" style="margin-top:0;">Add</button>
+      <button id="marketSearchBtn" class="tile-cta" style="margin-top:0;">Add</button>
     `;
     head.insertAdjacentElement('afterend', searchRow);
 
     const msg = document.createElement('div');
-    msg.id = 'stockSearchMsg';
+    msg.id = 'marketSearchMsg';
     msg.className = 'tile-hint';
     msg.style.cssText = 'display:none; color:var(--rose-bright); margin-bottom:2px;';
     searchRow.insertAdjacentElement('afterend', msg);
 
-    const stockInput = document.getElementById('stockSearchInput');
-    const stockSuggBox = document.getElementById('stockSuggestions');
-    let stockDebounce = null;
-
-    let lastSearchResults = [];
-
-    const searchCache = new Map(); // avoid re-hitting the API for a query already searched this session
-
-    stockInput.addEventListener('input', () => {
-      const q = stockInput.value.trim();
-      clearTimeout(stockDebounce);
-      hideStockMsg();
-      // Require 2+ characters - a single letter is rarely useful and just
-      // burns calls against a very tight rate limit (keyless CoinGecko is
-      // 5-30/min, shared across everyone on the same IP).
-      if(q.length < 2){ stockSuggBox.classList.remove('show'); return; }
-
-      const cacheKey = q.toLowerCase();
-      if(searchCache.has(cacheKey)){
-        lastSearchResults = searchCache.get(cacheKey);
-        renderStockSuggestions();
-        return;
-      }
-
-      stockDebounce = setTimeout(async () => {
-        try{
-          const res = await fetchWithTimeout(`/api/coingecko?endpoint=search&query=${encodeURIComponent(q)}`, null, 6000);
-          if(res.status === 429){
-            showStockMsg('Search is rate-limited right now (free CoinGecko access is very restricted) - wait a moment and try again, or add a CoinGecko Demo API key for a much higher limit.');
-            stockSuggBox.classList.remove('show');
-            return;
-          }
-          if(!res.ok) throw new Error('HTTP ' + res.status);
-          const data = await res.json();
-          lastSearchResults = (data.coins || []).slice(0, 8);
-          searchCache.set(cacheKey, lastSearchResults);
-          renderStockSuggestions();
-        }catch(err){
-          console.error('coin search failed', err);
-          showStockMsg('Search failed: ' + err.message);
-          stockSuggBox.classList.remove('show');
-        }
-      }, 500);
-    });
-
-    function renderStockSuggestions(){
-      if(!lastSearchResults.length){ stockSuggBox.classList.remove('show'); return; }
-      stockSuggBox.innerHTML = lastSearchResults.map((m, i) => `
-        <div class="city-suggestion" data-idx="${i}">
-          <span class="cs-name">${m.symbol.toUpperCase()}</span>
-          <span class="cs-region">${m.name}</span>
-        </div>
-      `).join('');
-      stockSuggBox.classList.add('show');
-      stockSuggBox.querySelectorAll('.city-suggestion').forEach((el, i) => {
-        el.addEventListener('click', (e) => {
-          e.stopPropagation();
-          stockInput.value = lastSearchResults[i].symbol.toUpperCase();
-          stockSuggBox.classList.remove('show');
-          addTrackedCoin(lastSearchResults[i].id, lastSearchResults[i].symbol.toUpperCase());
-        });
-      });
+    function showMsg(text){
+      msg.textContent = text;
+      msg.style.display = 'block';
+      setTimeout(() => { msg.style.display = 'none'; }, 4000);
     }
+    function hideMsg(){ msg.style.display = 'none'; }
 
-    document.addEventListener('click', (e) => {
-      if(!e.target.closest('#stockSearchInput') && !e.target.closest('#stockSuggestions')){
-        stockSuggBox.classList.remove('show');
-      }
-    });
+    const searchInput = document.getElementById('marketSearchInput');
+    const suggBox = document.getElementById('marketSuggestions');
+    let searchDebounce = null;
+    let lastResults = []; // unified list: { type:'coin'|'stock', id/symbol, label, sub }
+    const searchCache = new Map();
 
-    function addFromTopResult(){
-      stockSuggBox.classList.remove('show');
-      if(!lastSearchResults.length){
-        showStockMsg('Search first, then pick a result to add it.');
-        return;
-      }
-      addTrackedCoin(lastSearchResults[0].id, lastSearchResults[0].symbol.toUpperCase());
-    }
-    document.getElementById('stockSearchBtn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      addFromTopResult();
-    });
-    document.getElementById('stockSearchInput').addEventListener('keydown', (e) => {
-      if(e.key === 'Enter') addFromTopResult();
-    });
-
-    // ---- separate search for stocks/indices, powered by Finnhub ----
-    const tickerRow = document.createElement('div');
-    tickerRow.style.cssText = 'display:flex; gap:8px; margin:4px 0; position:relative;';
-    tickerRow.innerHTML = `
-      <div style="flex:1; min-width:0; position:relative;">
-        <input id="tickerSearchInput" type="text" placeholder="Add stock/index (e.g. TSLA)…" style="width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--line); border-radius:3px; color:var(--text); padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:13px; outline:none;" autocomplete="off">
-        <div id="tickerSuggestions" class="city-suggestions"></div>
-      </div>
-      <button id="tickerSearchBtn" class="tile-cta" style="margin-top:0;">Add</button>
-    `;
-    msg.insertAdjacentElement('afterend', tickerRow);
-
-    const tickerMsg = document.createElement('div');
-    tickerMsg.id = 'tickerSearchMsg';
-    tickerMsg.className = 'tile-hint';
-    tickerMsg.style.cssText = 'display:none; color:var(--rose-bright); margin-bottom:2px;';
-    tickerRow.insertAdjacentElement('afterend', tickerMsg);
-
-    function showTickerMsg(text){
-      tickerMsg.textContent = text;
-      tickerMsg.style.display = 'block';
-      setTimeout(() => { tickerMsg.style.display = 'none'; }, 4000);
-    }
-
-    let lastTickerResults = [];
-    let tickerDebounce = null;
-    const tickerInput = document.getElementById('tickerSearchInput');
-    const tickerSuggBox = document.getElementById('tickerSuggestions');
-
-    function renderTickerSuggestions(){
-      if(!lastTickerResults.length){ tickerSuggBox.classList.remove('show'); return; }
-      tickerSuggBox.innerHTML = lastTickerResults.map((m, i) => `
-        <div class="city-suggestion" data-idx="${i}">
-          <span class="cs-name">${m.symbol}</span>
-          <span class="cs-region">${m.description || ''}</span>
-        </div>
-      `).join('');
-      tickerSuggBox.classList.add('show');
-      tickerSuggBox.querySelectorAll('.city-suggestion').forEach((el, i) => {
-        el.addEventListener('click', (e) => {
-          e.stopPropagation();
-          addTrackedStock(lastTickerResults[i].symbol);
-        });
-      });
-    }
-
-    async function addTrackedStock(symbol){
-      symbol = symbol.trim().toUpperCase();
-      if(!symbol) return;
-      tickerSuggBox.classList.remove('show');
-      if(STOCKS.some(s => s.symbol.toUpperCase() === symbol)){
-        showTickerMsg(symbol + ' is already tracked.');
-        return;
-      }
-      const btn = document.getElementById('tickerSearchBtn');
+    async function addResult(item){
+      suggBox.classList.remove('show');
+      const btn = document.getElementById('marketSearchBtn');
       btn.textContent = '…';
       btn.disabled = true;
-      STOCKS.push({ symbol, label: symbol, tv: symbol });
-      tickerInput.value = '';
-      await connectMarkets();
-      if(!stocksLastFetchOk){
-        showTickerMsg('Could not confirm ' + symbol + ' right now - added anyway, try Refresh shortly.');
+      if(item.type === 'coin'){
+        const result = await addTrackedCoin(item.id, item.label);
+        if(result && result.alreadyTracked){
+          showMsg(item.label + ' is already tracked.');
+        } else {
+          searchInput.value = '';
+        }
+      } else {
+        const symbol = item.label.toUpperCase();
+        if(STOCKS.some(s => s.symbol.toUpperCase() === symbol)){
+          showMsg(symbol + ' is already tracked.');
+        } else {
+          STOCKS.push({ symbol, label: symbol, tv: symbol });
+          searchInput.value = '';
+          await connectMarkets();
+          if(!stocksLastFetchOk){
+            showMsg('Could not confirm ' + symbol + ' right now - added anyway, try Refresh shortly.');
+          }
+        }
       }
       btn.textContent = 'Add';
       btn.disabled = false;
     }
 
-    tickerInput.addEventListener('input', () => {
-      const q = tickerInput.value.trim();
-      clearTimeout(tickerDebounce);
-      if(q.length < 1){ tickerSuggBox.classList.remove('show'); return; }
-      tickerDebounce = setTimeout(async () => {
-        try{
-          const res = await fetchWithTimeout(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(q)}&token=${FINNHUB_KEY}`, null, 6000);
-          const data = await res.json();
-          lastTickerResults = (data.result || []).slice(0, 6);
-          renderTickerSuggestions();
-        }catch(err){ console.error('ticker search failed', err); }
-      }, 300);
-    });
-    document.getElementById('tickerSearchBtn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      if(lastTickerResults.length) addTrackedStock(lastTickerResults[0].symbol);
-      else if(tickerInput.value.trim()) addTrackedStock(tickerInput.value);
-    });
-    tickerInput.addEventListener('keydown', (e) => {
-      if(e.key === 'Enter'){
-        if(lastTickerResults.length) addTrackedStock(lastTickerResults[0].symbol);
-        else if(tickerInput.value.trim()) addTrackedStock(tickerInput.value);
+    function renderSuggestions(){
+      if(!lastResults.length){ suggBox.classList.remove('show'); return; }
+      suggBox.innerHTML = lastResults.map((r, i) => `
+        <div class="city-suggestion" data-idx="${i}">
+          <span class="cs-name">${r.label}${r.type === 'coin' ? '' : ' <span style="color:var(--text-dim); font-size:9px; font-family:\'JetBrains Mono\',monospace;">STOCK</span>'}</span>
+          <span class="cs-region">${r.sub}</span>
+        </div>
+      `).join('');
+      suggBox.classList.add('show');
+      suggBox.querySelectorAll('.city-suggestion').forEach((el, i) => {
+        el.addEventListener('click', (e) => { e.stopPropagation(); addResult(lastResults[i]); });
+      });
+    }
+
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim();
+      clearTimeout(searchDebounce);
+      hideMsg();
+      if(q.length < 2){ suggBox.classList.remove('show'); return; }
+
+      const cacheKey = q.toLowerCase();
+      if(searchCache.has(cacheKey)){
+        lastResults = searchCache.get(cacheKey);
+        renderSuggestions();
+        return;
       }
+
+      searchDebounce = setTimeout(async () => {
+        const [coinRes, stockRes] = await Promise.allSettled([
+          fetchWithTimeout(`/api/coingecko?endpoint=search&query=${encodeURIComponent(q)}`, null, 6000).then(r => r.json()),
+          fetchWithTimeout(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(q)}&token=${FINNHUB_KEY}`, null, 6000).then(r => r.json())
+        ]);
+
+        const coins = (coinRes.status === 'fulfilled' && coinRes.value.coins)
+          ? coinRes.value.coins.slice(0, 4).map(c => ({ type:'coin', id:c.id, label:c.symbol.toUpperCase(), sub:c.name }))
+          : [];
+        const stocks = (stockRes.status === 'fulfilled' && stockRes.value.result)
+          ? stockRes.value.result.slice(0, 4).map(s => ({ type:'stock', label:s.symbol, sub:s.description || '' }))
+          : [];
+
+        lastResults = [...coins, ...stocks];
+        searchCache.set(cacheKey, lastResults);
+        renderSuggestions();
+      }, 400);
     });
+
     document.addEventListener('click', (e) => {
-      if(!e.target.closest('#tickerSearchInput') && !e.target.closest('#tickerSuggestions')){
-        tickerSuggBox.classList.remove('show');
+      if(!e.target.closest('#marketSearchInput') && !e.target.closest('#marketSuggestions')){
+        suggBox.classList.remove('show');
       }
+    });
+
+    function addTopResult(){
+      suggBox.classList.remove('show');
+      if(!lastResults.length){
+        showMsg('Search first, then pick a result to add it.');
+        return;
+      }
+      addResult(lastResults[0]);
+    }
+    document.getElementById('marketSearchBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      addTopResult();
+    });
+    searchInput.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter') addTopResult();
     });
   }
   augmentMarketsTile();
