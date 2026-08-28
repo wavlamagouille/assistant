@@ -148,6 +148,10 @@ async function handleCalendar(req, res) {
     for (const block of blocks) {
       const body = block.split('END:VEVENT')[0];
       const summary = (body.match(/SUMMARY:(.*)/) || [])[1];
+      const descMatch = body.match(/DESCRIPTION:(.*)/);
+      const description = descMatch
+        ? descMatch[1].replace(/\\n/gi, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\').trim()
+        : '';
       const dtstartMatch = body.match(/DTSTART([^:\r\n]*):([^\r\n]*)/);
       if (!dtstartMatch) continue;
       const dtstartParams = dtstartMatch[1] || '';
@@ -164,7 +168,7 @@ async function handleCalendar(req, res) {
 
       if (!rruleMatch) {
         if (start >= windowStart && start <= windowEnd) {
-          occurrences.push({ summary: (summary || '(untitled)').trim(), start: start.toISOString(), allDay });
+          occurrences.push({ summary: (summary || '(untitled)').trim(), start: start.toISOString(), allDay, description });
         }
         continue;
       }
@@ -178,13 +182,13 @@ async function handleCalendar(req, res) {
         for (const d of dates) {
           const key = toRRuleDate(d);
           if (exdates.has(key)) continue;
-          occurrences.push({ summary: (summary || '(untitled)').trim(), start: d.toISOString(), allDay });
+          occurrences.push({ summary: (summary || '(untitled)').trim(), start: d.toISOString(), allDay, description });
         }
       } catch (err) {
         // Malformed RRULE - fall back to just the first occurrence rather
         // than dropping the event entirely.
         if (start >= windowStart && start <= windowEnd) {
-          occurrences.push({ summary: (summary || '(untitled)').trim(), start: start.toISOString(), allDay });
+          occurrences.push({ summary: (summary || '(untitled)').trim(), start: start.toISOString(), allDay, description });
         }
       }
     }
