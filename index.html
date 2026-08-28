@@ -931,6 +931,16 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="calEventModalBackdrop">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <div class="modal-title" id="calEventModalTitle">EVENT</div>
+        <button class="modal-close" id="calEventModalClose">✕</button>
+      </div>
+      <div id="calEventModalBody" style="padding:16px 20px; max-height:70vh; overflow-y:auto; font-size:13px; line-height:1.7; color:var(--text-mid); white-space:pre-wrap;"></div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="radarModalBackdrop">
     <div class="modal-panel">
       <div class="modal-head">
@@ -2875,7 +2885,7 @@
           const dateStr = ev.allDay
             ? d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })
             : d.toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
-          return `<div class="cal-next3-item">
+          return `<div class="cal-next3-item cal-event-row" data-cal-idx="${calEvents.indexOf(ev)}" style="cursor:pointer;">
             <span style="font-size:13px; color:var(--text);">${ev.summary}</span>
             <span style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; white-space:nowrap; margin-left:10px;">${dateStr}</span>
           </div>`;
@@ -2936,12 +2946,39 @@
             <div style="font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-dim); margin-bottom:6px;">${label}</div>
             ${dayEvents.map(ev => {
               const t = ev.allDay ? 'All day' : new Date(ev.start).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false });
-              return `<div class="cal-next3-item"><span style="font-size:13px; color:var(--text);">${ev.summary}</span><span style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${t}</span></div>`;
+              return `<div class="cal-next3-item cal-event-row" data-cal-idx="${calEvents.indexOf(ev)}" style="cursor:pointer;"><span style="font-size:13px; color:var(--text);">${ev.summary}</span><span style="font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">${t}</span></div>`;
             }).join('')}
           </div>`;
+        document.getElementById('calDayEvents').querySelectorAll('.cal-event-row').forEach(row => {
+          row.addEventListener('click', (e2) => {
+            e2.stopPropagation();
+            openCalEventModal(calEvents[parseInt(row.dataset.calIdx, 10)]);
+          });
+        });
+      });
+    });
+    bodyEl.querySelectorAll('.cal-next3 .cal-event-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openCalEventModal(calEvents[parseInt(row.dataset.calIdx, 10)]);
       });
     });
   }
+
+  function openCalEventModal(ev){
+    if(!ev) return;
+    document.getElementById('calEventModalTitle').textContent = ev.summary;
+    document.getElementById('calEventModalBody').textContent = ev.description && ev.description.trim()
+      ? ev.description
+      : 'No additional details for this event.';
+    document.getElementById('calEventModalBackdrop').classList.add('show');
+  }
+  document.getElementById('calEventModalClose').addEventListener('click', () => {
+    document.getElementById('calEventModalBackdrop').classList.remove('show');
+  });
+  document.getElementById('calEventModalBackdrop').addEventListener('click', (e) => {
+    if(e.target.id === 'calEventModalBackdrop') e.target.classList.remove('show');
+  });
 
   async function loadCalendar(){
     const bodyEl = setTileLive('agenda', 'Connecting…');
