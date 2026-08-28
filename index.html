@@ -944,15 +944,10 @@
   <div class="modal-backdrop" id="radarModalBackdrop">
     <div class="modal-panel">
       <div class="modal-head">
-        <div class="modal-title" id="radarModalTitle">RAIN RADAR — LAST 2H</div>
+        <div class="modal-title" id="radarModalTitle">RAIN RADAR — MÉTÉOSUISSE</div>
         <button class="modal-close" id="radarModalClose">✕</button>
       </div>
-      <div id="radarModalMap" class="radar-modal-map"></div>
-      <div class="radar-controls">
-        <button class="tile-cta" id="radarPlayBtn" style="margin-top:0;">Play</button>
-        <input type="range" id="radarSlider" min="0" max="0" value="0">
-        <span class="tile-idx" id="radarFrameLabel">—</span>
-      </div>
+      <iframe id="radarModalIframe" class="radar-modal-map" style="border:0; width:100%;" allow="geolocation"></iframe>
       <div class="precip-outlook-wrap">
         <div class="precip-outlook-label">24H FORECAST OUTLOOK</div>
         <div id="precipSummary" class="precip-summary"></div>
@@ -1668,7 +1663,6 @@
   // 5 min, free since Nov 2025), decoded server-side from raw HDF5 into a
   // georeferenced PNG image overlay - genuine Swiss national radar coverage
   // at high resolution, not a global tile service.
-  let radarMapInstance = null, radarLayer = null, radarMarker = null;
 
   let leafletLoadPromise = null;
   function ensureLeaflet(){
@@ -1686,107 +1680,24 @@
 
   async function openRadarModal(){
     const backdrop = document.getElementById('radarModalBackdrop');
-    const box = document.getElementById('radarModalMap');
+    const iframe = document.getElementById('radarModalIframe');
     backdrop.classList.add('show');
     loadPrecipOutlook();
-    try{
-      await ensureLeaflet();
-      if(!radarMapInstance){
-        box.innerHTML = '';
-        radarMapInstance = L.map('radarModalMap', {
-          attributionControl:true, maxZoom:12, minZoom:6,
-          maxBounds: L.latLngBounds([45.3, 4.8], [48.5, 11.2]),
-          maxBoundsViscosity: 0.7
-        })
-          .setView([LOCATION.lat, LOCATION.lon], 7);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; OpenStreetMap &copy; CARTO',
-          subdomains: 'abcd',
-          maxZoom: 12
-        }).addTo(radarMapInstance);
-        radarMarker = L.marker([LOCATION.lat, LOCATION.lon]).addTo(radarMapInstance);
-
-        document.getElementById('radarPlayBtn').addEventListener('click', toggleRadarPlay);
-        document.getElementById('radarSlider').addEventListener('input', (e) => {
-          stopRadarPlay();
-          showRadarFrame(parseInt(e.target.value, 10));
-        });
-      } else {
-        recenterRadar(LOCATION.lat, LOCATION.lon);
-      }
-      loadRadarFrames();
-      requestAnimationFrame(() => radarMapInstance.invalidateSize());
-      setTimeout(() => radarMapInstance && radarMapInstance.invalidateSize(), 150);
-      setTimeout(() => radarMapInstance && radarMapInstance.invalidateSize(), 400);
-    }catch(err){
-      console.error('radar modal init failed', err);
-      box.innerHTML = '<div class="radar-placeholder" style="color:var(--rose-bright);">Radar failed to load — check your connection.</div>';
-    }
+    // MeteoSwiss's own official map viewer, embedded directly - they handle
+    // the rendering/positioning correctly themselves, sidestepping all the
+    // custom georeferencing issues from the earlier DIY attempt. Center
+    // coordinate is in the Swiss LV95 grid (their embed API's native
+    // projection), fixed roughly on Switzerland's geographic center.
+    iframe.src = 'https://map.geo.admin.ch/#/embed?lang=en&center=2660000,1190000&z=3&topic=ech&layers=ch.meteoschweiz.messwerte-niederschlag-10min&bgLayer=ch.swisstopo.pixelkarte-grau';
   }
 
   function closeRadarModal(){
     document.getElementById('radarModalBackdrop').classList.remove('show');
-    stopRadarPlay();
-  }
-
-  let radarFrames = [], radarFrameIdx = 0, radarTimer = null, rainviewerHost = '';
-
-  async function loadRadarFrames(){
-    try{
-      const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-      const data = await res.json();
-      rainviewerHost = data.host;
-      radarFrames = (data.radar.past || []).slice(-12);
-      radarFrameIdx = radarFrames.length - 1;
-      const slider = document.getElementById('radarSlider');
-      slider.max = radarFrames.length - 1;
-      slider.value = radarFrameIdx;
-      showRadarFrame(radarFrameIdx);
-    }catch(err){
-      console.error('rainviewer fetch failed', err);
-      const label = document.getElementById('radarFrameLabel');
-      if(label) label.textContent = 'Unavailable';
-    }
-  }
-
-  function showRadarFrame(idx){
-    if(!radarFrames[idx] || !radarMapInstance) return;
-    radarFrameIdx = idx;
-    const frame = radarFrames[idx];
-    const url = `${rainviewerHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
-    if(radarLayer) radarMapInstance.removeLayer(radarLayer);
-    radarLayer = L.tileLayer(url, { opacity:0.7, zIndex:5, maxNativeZoom:7, maxZoom:12 }).addTo(radarMapInstance);
-    const slider = document.getElementById('radarSlider');
-    if(slider) slider.value = idx;
-    const label = document.getElementById('radarFrameLabel');
-    if(label){
-      const d = new Date(frame.time * 1000);
-      label.textContent = d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
-    }
-  }
-
-  function toggleRadarPlay(){
-    const btn = document.getElementById('radarPlayBtn');
-    if(radarTimer){ stopRadarPlay(); return; }
-    btn.textContent = 'Pause';
-    radarTimer = setInterval(() => {
-      const next = (radarFrameIdx + 1) % radarFrames.length;
-      showRadarFrame(next);
-    }, 500);
-  }
-
-  function stopRadarPlay(){
-    clearInterval(radarTimer);
-    radarTimer = null;
-    const btn = document.getElementById('radarPlayBtn');
-    if(btn) btn.textContent = 'Play';
   }
 
   function recenterRadar(lat, lon){
-    if(!radarMapInstance) return;
-    radarMapInstance.setView([lat, lon], 7);
-    if(radarMarker) radarMapInstance.removeLayer(radarMarker);
-    radarMarker = L.marker([lat, lon]).addTo(radarMapInstance);
+    // No-op now - the radar is MeteoSwiss's own embedded national overview
+    // (fixed view), not a per-location Leaflet map that needs re-centering.
   }
 
   // Radar imagery itself only extrapolates ~30-60min into the future (nowcast).
