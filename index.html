@@ -222,8 +222,8 @@
   .leaflet-bar a:hover{ background:var(--rose)!important; }
 
   .radar-modal-map{
-    height:60vh;
-    min-height:360px;
+    height:75vh;
+    min-height:500px;
     width:100%;
     background:#0f0f11;
   }
@@ -948,11 +948,6 @@
         <button class="modal-close" id="radarModalClose">✕</button>
       </div>
       <iframe id="radarModalIframe" class="radar-modal-map" style="border:0; width:100%;" allow="geolocation"></iframe>
-      <div class="precip-outlook-wrap">
-        <div class="precip-outlook-label">24H FORECAST OUTLOOK</div>
-        <div id="precipSummary" class="precip-summary"></div>
-        <div id="precipOutlook" class="precip-outlook"></div>
-      </div>
     </div>
   </div>
 
@@ -1655,7 +1650,6 @@
     await connectWeather();
     msg.style.display = 'none';
     recenterRadar(result.lat, result.lon);
-    if(document.getElementById('radarModalBackdrop').classList.contains('show')) loadPrecipOutlook();
   }
 
   // ---- rain radar (Leaflet + MeteoSwiss, no key needed) ----
@@ -1682,13 +1676,10 @@
     const backdrop = document.getElementById('radarModalBackdrop');
     const iframe = document.getElementById('radarModalIframe');
     backdrop.classList.add('show');
-    loadPrecipOutlook();
-    // MeteoSwiss's own official map viewer, embedded directly - they handle
-    // the rendering/positioning correctly themselves, sidestepping all the
-    // custom georeferencing issues from the earlier DIY attempt. Center
-    // coordinate is in the Swiss LV95 grid (their embed API's native
-    // projection), fixed roughly on Switzerland's geographic center.
-    iframe.src = 'https://map.geo.admin.ch/#/embed?lang=en&center=2660000,1190000&z=3&topic=ech&layers=ch.meteoschweiz.messwerte-niederschlag-10min&bgLayer=ch.swisstopo.pixelkarte-grau';
+    // MeteoSwiss's own dedicated precipitation radar application - includes
+    // its own legend, layer toggles, and a time slider covering both past
+    // radar and forecast, so no separate outlook widget is needed anymore.
+    iframe.src = 'https://www.meteosuisse.admin.ch/services-et-publications/applications/precipitations.html';
   }
 
   function closeRadarModal(){
@@ -1698,57 +1689,6 @@
   function recenterRadar(lat, lon){
     // No-op now - the radar is MeteoSwiss's own embedded national overview
     // (fixed view), not a per-location Leaflet map that needs re-centering.
-  }
-
-  // Radar imagery itself only extrapolates ~30-60min into the future (nowcast).
-  // For a genuine 24h outlook we use Open-Meteo's forecast model instead.
-  async function loadPrecipOutlook(){
-    const el = document.getElementById('precipOutlook');
-    const summaryEl = document.getElementById('precipSummary');
-    el.innerHTML = '';
-    if(summaryEl) summaryEl.textContent = 'Loading…';
-    try{
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${LOCATION.lat}&longitude=${LOCATION.lon}&hourly=precipitation_probability,precipitation&forecast_hours=24&timezone=auto`;
-      const res = await fetch(url);
-      if(!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      const times = data.hourly.time;
-      const probs = data.hourly.precipitation_probability;
-      const amounts = data.hourly.precipitation;
-
-      // Plain-language summary: find the first stretch where rain is likely
-      if(summaryEl){
-        let firstIdx = -1, lastIdx = -1;
-        for(let i = 0; i < probs.length; i++){
-          if(probs[i] >= 50){
-            if(firstIdx === -1) firstIdx = i;
-            lastIdx = i;
-          }
-        }
-        if(firstIdx === -1){
-          summaryEl.textContent = 'No significant rain expected in the next 24h.';
-        } else {
-          const fmt = (i) => new Date(times[i]).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
-          summaryEl.textContent = 'Rain likely between ' + fmt(firstIdx) + ' and ' + fmt(lastIdx) + '.';
-        }
-      }
-
-      el.innerHTML = times.map((t, i) => {
-        const pct = probs[i] || 0;
-        const mm = amounts[i] || 0;
-        const hour = new Date(t).getHours();
-        const showLabel = i % 4 === 0;
-        return `
-          <div class="precip-bar-col">
-            <div class="precip-bar" style="height:${Math.max(pct, 2)}%;" title="${pct}% · ${mm}mm"></div>
-            ${showLabel ? `<div class="precip-bar-hour">${hour}h</div>` : ''}
-          </div>`;
-      }).join('');
-    }catch(err){
-      console.error('precip outlook failed', err);
-      if(summaryEl) summaryEl.textContent = '';
-      el.innerHTML = '<div class="tile-hint" style="color:var(--text-dim);">Outlook unavailable.</div>';
-    }
   }
 
   document.getElementById('radarModalClose').addEventListener('click', closeRadarModal);
@@ -1804,7 +1744,6 @@
         LOCATION.lon = s.lon;
         await connectWeather();
         recenterRadar(s.lat, s.lon);
-        if(document.getElementById('radarModalBackdrop').classList.contains('show')) loadPrecipOutlook();
         msg.style.display = 'none';
       }catch(err){
         msg.style.color = 'var(--rose-bright)';
