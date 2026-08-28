@@ -941,15 +941,6 @@
     </div>
   </div>
 
-  <div class="modal-backdrop" id="radarModalBackdrop">
-    <div class="modal-panel">
-      <div class="modal-head">
-        <div class="modal-title" id="radarModalTitle">RAIN RADAR — MÉTÉOSUISSE</div>
-        <button class="modal-close" id="radarModalClose">✕</button>
-      </div>
-      <iframe id="radarModalIframe" class="radar-modal-map" style="border:0; width:100%;" allow="geolocation"></iframe>
-    </div>
-  </div>
 
   <div class="modal-backdrop" id="projectModalBackdrop">
     <div class="modal-panel">
@@ -1672,29 +1663,10 @@
     return leafletLoadPromise;
   }
 
-  async function openRadarModal(){
-    const backdrop = document.getElementById('radarModalBackdrop');
-    const iframe = document.getElementById('radarModalIframe');
-    backdrop.classList.add('show');
-    // MeteoSwiss's own dedicated precipitation radar application - includes
-    // its own legend, layer toggles, and a time slider covering both past
-    // radar and forecast, so no separate outlook widget is needed anymore.
-    iframe.src = 'https://map.geo.admin.ch/#/embed?lang=en&center=2660000,1190000&z=3&topic=ech&layers=ch.meteoschweiz.messwerte-niederschlag-10min&bgLayer=ch.swisstopo.pixelkarte-grau';
-  }
-
-  function closeRadarModal(){
-    document.getElementById('radarModalBackdrop').classList.remove('show');
-  }
-
   function recenterRadar(lat, lon){
-    // No-op now - the radar is MeteoSwiss's own embedded national overview
-    // (fixed view), not a per-location Leaflet map that needs re-centering.
+    // No-op - radar now just opens MeteoSwiss's real page in a new tab,
+    // nothing here to re-center.
   }
-
-  document.getElementById('radarModalClose').addEventListener('click', closeRadarModal);
-  document.getElementById('radarModalBackdrop').addEventListener('click', (e) => {
-    if(e.target.id === 'radarModalBackdrop') closeRadarModal();
-  });
 
   // ---- augment the weather tile with city search + a "Radar" button ----
   function augmentWeatherTile(){
@@ -1722,7 +1694,7 @@
     const radarBtn = document.createElement('button');
     radarBtn.className = 'icon-refresh-btn';
     radarBtn.id = 'radarToggleBtn';
-    radarBtn.title = 'Rain radar';
+    radarBtn.title = 'Open rain radar (MeteoSwiss, new tab)';
     radarBtn.setAttribute('aria-label', 'Rain radar');
     radarBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/><path d="M12 3v2M12 19v2M21 12h-2M5 12H3"/></svg>`;
     tile.querySelector('.tile-head-right').appendChild(radarBtn);
@@ -1799,7 +1771,7 @@
 
     radarBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      openRadarModal();
+      window.open('https://www.meteosuisse.admin.ch/services-et-publications/applications/precipitations.html', '_blank');
     });
   }
   augmentWeatherTile();
@@ -2236,7 +2208,6 @@
   document.addEventListener('keydown', (e) => {
     if(e.key !== 'Escape') return;
     closeChart();
-    closeRadarModal();
     closeTransitModal();
     closeQrModal();
     closeMailModal();
