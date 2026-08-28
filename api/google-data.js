@@ -122,6 +122,63 @@ async function handleGmailRead(req, res) {
   }
 }
 
+// Public, no-auth feed maintained by scraping UFC's own site several times
+// a day via GitHub Actions (github.com/clarencechaan/ufc-cal) - fetched
+// directly here so UFC events show up without depending on Google's own
+// calendar-to-calendar sync timing (which is what made subscribing to it
+// in Google Calendar directly not work reliably).
+const UFC_ICS_URL = 'https://raw.githubusercontent.com/clarencechaan/ufc-cal/ics/UFC.ics';
+
+function parseICSEvents(text, windowStart, windowEnd) {
+  const unfolded = text.replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '');
+  const occurrences = [];
+  const blocks = unfolded.split('BEGIN:VEVENT').slice(1);
+
+  for (const block of blocks) {
+    const body = block.split('END:VEVENT')[0];
+    const summary = (body.match(/SUMMARY:(.*)/) || [])[1];
+    const descMatch = body.match(/DESCRIPTION:(.*)/);
+    const description = descMatch
+      ? descMatch[1].replace(/\\n/gi, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\').trim()
+      : '';
+    const dtstartMatch = body.match(/DTSTART([^:\r\n]*):([^\r\n]*)/);
+    if (!dtstartMatch) continue;
+    const dtstartParams = dtstartMatch[1] || '';
+    const dtstartRaw = dtstartMatch[2].trim();
+    const allDay = /^\d{8}$/.test(dtstartRaw);
+    const start = parseICSDate(dtstartRaw, dtstartParams);
+    if (!start) continue;
+
+    const rruleMatch = body.match(/RRULE:([^\r\n]*)/);
+    const exdateMatches = [...body.matchAll(/EXDATE[^:\r\n]*:([^\r\n]*)/g)];
+    const exdates = new Set(
+      exdateMatches.flatMap(m => m[1].split(',').map(v => v.trim()))
+    );
+
+    if (!rruleMatch) {
+      if (start >= windowStart && start <= windowEnd) {
+        occurrences.push({ summary: (summary || '(untitled)').trim(), start: start.toISOString(), allDay, description });
+      }
+      continue;
+    }
+
+    try {
+      const rule = rrulestr('DTSTART:' + toRRuleDate(start) + '\nRRULE:' + rruleMatch[1].trim());
+      const dates = rule.between(windowStart, windowEnd, true);
+      for (const d of dates) {
+        const key = toRRuleDate(d);
+        if (exdates.has(key)) continue;
+        occurrences.push({ summary: (summary || '(untitled)').trim(), start: d.toISOString(), allDay, description });
+      }
+    } catch (err) {
+      if (start >= windowStart && start <= windowEnd) {
+        occurrences.push({ summary: (summary || '(untitled)').trim(), start: start.toISOString(), allDay, description });
+      }
+    }
+  }
+  return occurrences;
+}
+
 async function handleCalendar(req, res) {
   try {
     const icsUrl = process.env.GOOGLE_CALENDAR_ICS_URL;
@@ -129,68 +186,24 @@ async function handleCalendar(req, res) {
       return res.status(400).json({ error: 'GOOGLE_CALENDAR_ICS_URL is not set in Vercel Environment Variables.' });
     }
 
-    const icsRes = await fetch(icsUrl);
-    if (!icsRes.ok) throw new Error('Calendar feed returned HTTP ' + icsRes.status);
-    const text = await icsRes.text();
-
-    // Unfold ICS line-folding (continuation lines start with a space/tab)
-    // before splitting into VEVENT blocks, or wrapped RRULE/EXDATE lines
-    // get silently truncated.
-    const unfolded = text.replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '');
-
     const now = new Date();
     const windowStart = new Date(now.getTime() - 24 * 3600 * 1000); // include "today" fully
     const windowEnd = new Date(now.getTime() + 90 * 24 * 3600 * 1000); // 90 days out, plenty for a calendar view
 
-    const occurrences = [];
-    const blocks = unfolded.split('BEGIN:VEVENT').slice(1);
+    const [primaryResult, ufcResult] = await Promise.allSettled([
+      fetch(icsUrl).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }),
+      fetch(UFC_ICS_URL).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+    ]);
 
-    for (const block of blocks) {
-      const body = block.split('END:VEVENT')[0];
-      const summary = (body.match(/SUMMARY:(.*)/) || [])[1];
-      const descMatch = body.match(/DESCRIPTION:(.*)/);
-      const description = descMatch
-        ? descMatch[1].replace(/\\n/gi, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\').trim()
-        : '';
-      const dtstartMatch = body.match(/DTSTART([^:\r\n]*):([^\r\n]*)/);
-      if (!dtstartMatch) continue;
-      const dtstartParams = dtstartMatch[1] || '';
-      const dtstartRaw = dtstartMatch[2].trim();
-      const allDay = /^\d{8}$/.test(dtstartRaw);
-      const start = parseICSDate(dtstartRaw, dtstartParams);
-      if (!start) continue;
+    if (primaryResult.status === 'rejected') {
+      throw new Error('Calendar feed failed: ' + primaryResult.reason.message);
+    }
 
-      const rruleMatch = body.match(/RRULE:([^\r\n]*)/);
-      const exdateMatches = [...body.matchAll(/EXDATE[^:\r\n]*:([^\r\n]*)/g)];
-      const exdates = new Set(
-        exdateMatches.flatMap(m => m[1].split(',').map(v => v.trim()))
-      );
-
-      if (!rruleMatch) {
-        if (start >= windowStart && start <= windowEnd) {
-          occurrences.push({ summary: (summary || '(untitled)').trim(), start: start.toISOString(), allDay, description });
-        }
-        continue;
-      }
-
-      // Recurring event - expand actual occurrences in the window using
-      // rrule.js rather than only ever reporting the first DTSTART, which
-      // was the bug causing recurring events to show missing/wrong dates.
-      try {
-        const rule = rrulestr('DTSTART:' + toRRuleDate(start) + '\nRRULE:' + rruleMatch[1].trim());
-        const dates = rule.between(windowStart, windowEnd, true);
-        for (const d of dates) {
-          const key = toRRuleDate(d);
-          if (exdates.has(key)) continue;
-          occurrences.push({ summary: (summary || '(untitled)').trim(), start: d.toISOString(), allDay, description });
-        }
-      } catch (err) {
-        // Malformed RRULE - fall back to just the first occurrence rather
-        // than dropping the event entirely.
-        if (start >= windowStart && start <= windowEnd) {
-          occurrences.push({ summary: (summary || '(untitled)').trim(), start: start.toISOString(), allDay, description });
-        }
-      }
+    let occurrences = parseICSEvents(primaryResult.value, windowStart, windowEnd);
+    if (ufcResult.status === 'fulfilled') {
+      occurrences = occurrences.concat(parseICSEvents(ufcResult.value, windowStart, windowEnd));
+    } else {
+      console.error('UFC feed fetch failed (non-fatal)', ufcResult.reason);
     }
 
     occurrences.sort((a, b) => new Date(a.start) - new Date(b.start));
