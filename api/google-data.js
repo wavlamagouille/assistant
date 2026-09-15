@@ -223,7 +223,15 @@ async function handleCalendar(req, res) {
       console.error('GSHC feed fetch failed (non-fatal)', gshcResult.reason);
     }
     if (sfcResult.status === 'fulfilled') {
-      occurrences = occurrences.concat(parseICSEvents(sfcResult.value, windowStart, windowEnd));
+      const stripPrefix = (s) => s
+        .replace(/^[A-Z]+-\d{4}-\d{4}-/, '')   // "SUL-2026-2027-Team A-Team B"
+        .replace(/^\d{4}-\d{4}-[A-Z]+-/, '');  // "2026-2027-CUP-Team A-Team B"
+      const sfcEvents = parseICSEvents(sfcResult.value, windowStart, windowEnd).map(ev => ({
+        ...ev,
+        summary: stripPrefix(ev.summary),
+        description: ev.description ? stripPrefix(ev.description) : ev.description
+      }));
+      occurrences = occurrences.concat(sfcEvents);
     } else {
       console.error('Servette FC feed fetch failed (non-fatal)', sfcResult.reason);
     }
