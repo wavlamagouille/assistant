@@ -258,11 +258,11 @@ function parseICSDate(val, params) {
   if (!m) return null;
   const [, y, mo, d, h, mi, s, z] = m;
   if (z) return new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}Z`);
-  if (params && /TZID/i.test(params)) {
-    // Naive local time with a timezone - apply the EU offset for that date.
-    const naiveUTC = new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}Z`);
-    const offset = euOffsetHours(naiveUTC);
-    return new Date(naiveUTC.getTime() - offset * 3600 * 1000);
-  }
-  return new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}Z`);
+  // No "Z" suffix - this is "floating time" per RFC 5545, meant as local
+  // time (whether or not a TZID param is explicitly given). Treating it as
+  // UTC directly was the bug: a plain 19:45 got stored as 19:45 UTC, then
+  // displayed as 21:45 once converted to Europe/Zurich (UTC+2 in summer).
+  const naiveUTC = new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}Z`);
+  const offset = euOffsetHours(naiveUTC);
+  return new Date(naiveUTC.getTime() - offset * 3600 * 1000);
 }
