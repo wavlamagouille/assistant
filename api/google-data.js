@@ -135,6 +135,10 @@ const UFC_ICS_URL = 'https://raw.githubusercontent.com/clarencechaan/ufc-cal/ics
 // updating once a new season starts and GSHC generates a new link.
 const GSHC_ICS_URL = 'https://www.gshc.ch/?homeTeam=5&season=2027&sport=hockey&type=1747641248&cHash=6aed337d269d319fc953bba22ef9737a';
 
+// Servette FC's own official season ICS feed, from their calendar page's
+// "iCalendar" download link. Unlike GSHC's, this URL isn't season-specific.
+const SFC_ICS_URL = 'https://servettefc.ch/icalendar-export/?export=1';
+
 function parseICSEvents(text, windowStart, windowEnd) {
   const unfolded = text.replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '');
   const occurrences = [];
@@ -196,10 +200,11 @@ async function handleCalendar(req, res) {
     const windowStart = new Date(now.getTime() - 24 * 3600 * 1000); // include "today" fully
     const windowEnd = new Date(now.getTime() + 90 * 24 * 3600 * 1000); // 90 days out, plenty for a calendar view
 
-    const [primaryResult, ufcResult, gshcResult] = await Promise.allSettled([
+    const [primaryResult, ufcResult, gshcResult, sfcResult] = await Promise.allSettled([
       fetch(icsUrl).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }),
       fetch(UFC_ICS_URL).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }),
-      fetch(GSHC_ICS_URL).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      fetch(GSHC_ICS_URL).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }),
+      fetch(SFC_ICS_URL).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
     ]);
 
     if (primaryResult.status === 'rejected') {
@@ -216,6 +221,11 @@ async function handleCalendar(req, res) {
       occurrences = occurrences.concat(parseICSEvents(gshcResult.value, windowStart, windowEnd));
     } else {
       console.error('GSHC feed fetch failed (non-fatal)', gshcResult.reason);
+    }
+    if (sfcResult.status === 'fulfilled') {
+      occurrences = occurrences.concat(parseICSEvents(sfcResult.value, windowStart, windowEnd));
+    } else {
+      console.error('Servette FC feed fetch failed (non-fatal)', sfcResult.reason);
     }
 
     occurrences.sort((a, b) => new Date(a.start) - new Date(b.start));
