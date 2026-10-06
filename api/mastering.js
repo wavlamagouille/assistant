@@ -1,9 +1,9 @@
-// Reads the Wavaudiolab intake app's Firebase Realtime Database: /projects
-// (submitted mastering jobs) and /inquiries (quote requests). Rather than
-// requiring a change to your Firebase rules, this signs in anonymously first
-// (the same mechanism your intake app almost certainly already uses to let
-// clients submit without an account) and reads using that session —
-// respecting your existing rules exactly as they are.
+// Reads the Wavaudiolab Studio Firebase Realtime Database: /projects
+// (submitted mastering jobs) and /inquiries (quote requests).
+// The database rules only let allow-listed engineers read these, so this signs
+// in with the studio's engineer account (email + password, stored as Vercel
+// env vars MASTERING_ENGINEER_EMAIL / MASTERING_ENGINEER_PASSWORD) and reads
+// with that session.
 
 const DATABASE_URL = 'https://mastering-2b382-default-rtdb.europe-west1.firebasedatabase.app';
 const FIREBASE_API_KEY = 'AIzaSyCasdb4heqoq7_740fJqy_x03BZmKt1WoQ'; // Firebase's public web API key, not a secret
@@ -13,13 +13,16 @@ let cachedTokenExpiry = 0;
 
 async function getAuthToken(){
   if(cachedToken && Date.now() < cachedTokenExpiry) return cachedToken;
-  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, {
+  const email = process.env.MASTERING_ENGINEER_EMAIL;
+  const password = process.env.MASTERING_ENGINEER_PASSWORD;
+  if(!email || !password) throw new Error('MASTERING_ENGINEER_EMAIL / MASTERING_ENGINEER_PASSWORD are not set in Vercel Environment Variables.');
+  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ returnSecureToken: true })
+    body: JSON.stringify({ email, password, returnSecureToken: true })
   });
   const data = await r.json();
-  if(!r.ok) throw new Error((data.error && data.error.message) || 'Anonymous sign-in failed');
+  if(!r.ok) throw new Error('Engineer sign-in failed: ' + ((data.error && data.error.message) || r.status));
   cachedToken = data.idToken;
   cachedTokenExpiry = Date.now() + (Number(data.expiresIn || 3600) * 1000) - 60000;
   return cachedToken;
